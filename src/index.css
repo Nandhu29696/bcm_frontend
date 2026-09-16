@@ -1,0 +1,161 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens. Everything visual derives from these so the application reads
+ * as one system: one brand hue, one neutral ramp, one set of status colours,
+ * one radius, one shadow scale.
+ */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+  /* Brand: a deep, slightly violet blue. Reads as institutional without being dull. */
+  --color-brand-50: oklch(0.975 0.012 270);
+  --color-brand-100: oklch(0.94 0.03 270);
+  --color-brand-200: oklch(0.88 0.06 270);
+  --color-brand-300: oklch(0.78 0.10 270);
+  --color-brand-400: oklch(0.66 0.15 270);
+  --color-brand-500: oklch(0.56 0.18 270);
+  --color-brand-600: oklch(0.49 0.19 270);
+  --color-brand-700: oklch(0.42 0.17 270);
+  --color-brand-800: oklch(0.35 0.14 270);
+  --color-brand-900: oklch(0.28 0.10 270);
+  --color-brand-950: oklch(0.20 0.07 270);
+
+  /* Accent for emphasis moments (progress, success glows). */
+  --color-accent-400: oklch(0.78 0.14 175);
+  --color-accent-500: oklch(0.68 0.14 175);
+  --color-accent-600: oklch(0.58 0.13 175);
+
+  /* Neutral ramp, cool-tinted to sit with the brand. */
+  --color-ink-50: oklch(0.985 0.003 260);
+  --color-ink-100: oklch(0.965 0.005 260);
+  --color-ink-200: oklch(0.92 0.008 260);
+  --color-ink-300: oklch(0.86 0.01 260);
+  --color-ink-400: oklch(0.70 0.015 260);
+  --color-ink-500: oklch(0.55 0.02 260);
+  --color-ink-600: oklch(0.45 0.02 260);
+  --color-ink-700: oklch(0.36 0.02 260);
+  --color-ink-800: oklch(0.27 0.02 260);
+  --color-ink-900: oklch(0.20 0.02 260);
+  --color-ink-950: oklch(0.14 0.02 260);
+
+  /* Plan status colours. Defined once so the cost code list, the plan header
+     and the dashboards cannot drift apart. */
+  --color-status-notstarted: oklch(0.72 0.02 260);
+  --color-status-progress: oklch(0.72 0.14 85);
+  --color-status-review: oklch(0.68 0.15 250);
+  --color-status-approved: oklch(0.68 0.15 150);
+  --color-status-rework: oklch(0.65 0.19 25);
+  --color-status-exempted: oklch(0.66 0.11 300);
+
+  --radius-card: 0.875rem;
+  --radius-control: 0.625rem;
+
+  --shadow-card: 0 1px 2px oklch(0.2 0.02 260 / 0.04), 0 1px 3px oklch(0.2 0.02 260 / 0.06);
+  --shadow-raised: 0 4px 12px oklch(0.2 0.02 260 / 0.08), 0 1px 3px oklch(0.2 0.02 260 / 0.06);
+  --shadow-overlay: 0 24px 48px -12px oklch(0.2 0.05 270 / 0.35);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-ink-100 font-sans text-ink-900 antialiased;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
+}
+
+/* A calm, consistent focus ring everywhere. */
+:where(button, a, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+  border-radius: var(--radius-control);
+}
+
+/* Data tables: one look. */
+.data-table {
+  @apply w-full border-collapse text-sm;
+}
+.data-table thead th {
+  @apply sticky top-0 z-[1] bg-ink-50/95 px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500 backdrop-blur;
+  border-bottom: 1px solid var(--color-ink-200);
+}
+.data-table tbody td {
+  @apply px-4 py-3 text-ink-700;
+  border-bottom: 1px solid var(--color-ink-100);
+}
+.data-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+/* Dashboard and other dense panels: tighter cells, smaller type. */
+.data-table.compact thead th {
+  @apply px-3 py-2;
+}
+.data-table.compact tbody td {
+  @apply px-3 py-2 text-xs;
+}
+.data-table tbody tr {
+  transition: background-color 120ms ease;
+}
+.data-table tbody tr:hover td {
+  @apply bg-brand-50/50;
+}
+.data-table tbody tr:nth-child(even) td {
+  background-color: oklch(0.985 0.003 260 / 0.6);
+}
+.data-table tbody tr:nth-child(even):hover td {
+  @apply bg-brand-50/50;
+}
+
+/* Subtle, consistent scrollbars on the canvas. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-300) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-ink-300);
+  border-radius: 999px;
+}
+
+/* Text selection in the brand hue. */
+::selection {
+  background: var(--color-brand-200);
+}
+
+/* Entrances: short and restrained. */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fade-up {
+  animation: fade-up 180ms ease-out both;
+}
+.animate-fade-in {
+  animation: fade-in 150ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-fade-in {
+    animation: none;
+  }
+}
