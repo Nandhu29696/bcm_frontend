@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 
 import { toApiError } from '@/api/client'
 import { useToast } from '@/components/useToast'
-import { Alert, Badge, Button, EmptyState, Field, Input, Modal, PageHeader, Select, Spinner, StatusBadge } from '@/components/ui'
+import { Alert, Badge, Button, Card, EmptyState, Field, Input, Modal, PageHeader, Select, Spinner, StatusBadge } from '@/components/ui'
 import type { EmployeeSummary, UserStatus } from '@/features/auth/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { estateApi, estateKeys } from '@/features/estates/api'
@@ -29,6 +29,40 @@ export function UsersPage() {
   }
   const users = useQuery({ queryKey: adminKeys.users(filters), queryFn: () => adminApi.users(filters) })
   const [editing, setEditing] = useState<AdminUser | null>(null)
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const queryClient = useQueryClient()
+  const toast = useToast()
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false)
+  const upload = useMutation({
+    mutationFn: () => adminApi.uploadEmployees(uploadFile as File),
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'employees'] })
+      setUploadFile(null)
+      if (result.errors.length) {
+        toast.error(`${result.created} created, ${result.updated} updated, ${result.errors.length} row${result.errors.length === 1 ? '' : 's'} skipped`)
+      } else {
+        toast.success(`${result.created} employees created, ${result.updated} updated`)
+      }
+    },
+    onError: (error) => toast.error(toApiError(error).detail),
+  })
+
+  async function downloadTemplate() {
+    setDownloadingTemplate(true)
+    try {
+      const blob = await adminApi.downloadEmployeeTemplate()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'employee_bulk_upload_template.xlsx'
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      toast.error(toApiError(error).detail)
+    } finally {
+      setDownloadingTemplate(false)
+    }
+  }
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(searchParams)
@@ -39,6 +73,7 @@ export function UsersPage() {
   }
 
   const pending = users.data?.results.filter((u) => u.user_status === 'Pending').length ?? 0
+  const activeFilters = [filters.search, filters.user_status, filters.auth_provider].filter(Boolean).length
 
   return (
     <>
@@ -48,28 +83,79 @@ export function UsersPage() {
         subtitle={users.data ? `${users.data.count} account${users.data.count === 1 ? '' : 's'}${pending ? ` · ${pending} awaiting activation on this page` : ''}` : undefined}
       />
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        <Input
-          type="search"
-          value={filters.search}
-          onChange={(e) => setParam('search', e.target.value)}
-          placeholder="Search by name or email"
-          aria-label="Search users"
-          className="max-w-xs"
-        />
-        <Select value={filters.user_status} onChange={(e) => setParam('user_status', e.target.value)} aria-label="Filter by status" className="w-40">
-          <option value="">All statuses</option>
-          {STATUSES.map((s) => (
-            <option key={s}>{s}</option>
-          ))}
-        </Select>
-        <Select value={filters.auth_provider} onChange={(e) => setParam('auth_provider', e.target.value)} aria-label="Filter by sign-in method" className="w-44">
-          <option value="">All sign-in methods</option>
-          <option value="local">Password</option>
-          <option value="google">Google</option>
-          <option value="microsoft">Microsoft</option>
-        </Select>
+      <div className="mb-5 rounded-card border border-ink-200/80 bg-white p-3 shadow-card">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+          <label className="min-w-0 flex-1">
+            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Find an account</span>
+            <Input
+              type="search"
+              value={filters.search}
+              onChange={(e) => setParam('search', e.target.value)}
+              placeholder="Search by name or email"
+              aria-label="Search users"
+            />
+          </label>
+          <label className="lg:w-44">
+            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Status</span>
+            <Select value={filters.user_status} onChange={(e) => setParam('user_status', e.target.value)} aria-label="Filter by status">
+              <option value="">All statuses</option>
+              {STATUSES.map((s) => (
+                <option key={s}>{s}</option>
+              ))}
+            </Select>
+          </label>
+          <label className="lg:w-48">
+            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Sign-in method</span>
+            <Select value={filters.auth_provider} onChange={(e) => setParam('auth_provider', e.target.value)} aria-label="Filter by sign-in method">
+              <option value="">All methods</option>
+              <option value="local">Password</option>
+              <option value="google">Google</option>
+              <option value="microsoft">Microsoft</option>
+            </Select>
+          </label>
+          {activeFilters > 0 && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="lg:mb-0.5"
+              onClick={() => setSearchParams({}, { replace: true })}
+            >
+              Clear filters
+            </Button>
+          )}
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-3 text-xs text-ink-500">
+          <span className="font-medium text-ink-700">Showing {users.data?.count ?? '...'} accounts</span>
+          {pending > 0 && <Badge className="bg-amber-50 text-amber-800">{pending} awaiting activation</Badge>}
+          {activeFilters > 0 && <span>{activeFilters} filter{activeFilters === 1 ? '' : 's'} applied</span>}
+        </div>
       </div>
+
+      <Card className="mb-5 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-ink-900">Bulk employee upload</h2>
+          <p className="mt-1 text-xs text-ink-500">Upload the employee Excel export. Existing employee numbers are updated; new estate names are created automatically.</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button type="button" size="sm" variant="ghost" disabled={downloadingTemplate} onClick={() => void downloadTemplate()}>
+            {downloadingTemplate ? 'Preparing' : 'Download template'}
+          </Button>
+          <label className="inline-flex h-9.5 cursor-pointer items-center justify-center rounded-control border border-ink-200 bg-white px-4 text-sm font-medium text-ink-800 shadow-card transition-colors hover:border-ink-300 hover:bg-ink-50">
+            <span>{uploadFile ? uploadFile.name : 'Choose Excel file'}</span>
+            <input
+              type="file"
+              accept=".xlsx,.xlsm"
+              className="sr-only"
+              onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
+              aria-label="Choose employee Excel file"
+            />
+          </label>
+          <Button type="button" size="sm" disabled={!uploadFile || upload.isPending} onClick={() => upload.mutate()}>
+            {upload.isPending ? 'Uploading' : 'Upload'}
+          </Button>
+        </div>
+      </Card>
 
       {users.isPending ? (
         <div className="py-16 text-center">
@@ -80,8 +166,8 @@ export function UsersPage() {
       ) : users.data.results.length === 0 ? (
         <EmptyState title="No accounts match" />
       ) : (
-        <div className="overflow-hidden rounded-card border border-ink-200/80 bg-white shadow-card">
-          <table className="data-table">
+        <div className="overflow-x-auto rounded-card border border-ink-200/80 bg-white shadow-card">
+          <table className="data-table min-w-[900px]">
             <thead>
               <tr>
                 <th>User</th>
@@ -91,7 +177,7 @@ export function UsersPage() {
                 <th>Roles</th>
                 <th>Employee</th>
                 <th>Last sign-in</th>
-                <th />
+                <th className="w-20 text-right">Action</th>
               </tr>
             </thead>
             <tbody>

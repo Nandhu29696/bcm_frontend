@@ -30,6 +30,13 @@ export interface AdminUserPatch {
   estate_ids?: number[]
 }
 
+export interface EmployeeBulkUploadResult {
+  created: number
+  updated: number
+  estates_created: number
+  errors: { row: number; detail: string }[]
+}
+
 export interface Role {
   role_id: number
   role_code: string
@@ -62,6 +69,13 @@ export const adminApi = {
     const { data } = await api.get<Paginated<EmployeeSummary>>('/employees/', { params: { search, page_size: 10 } })
     return data.results
   },
+  uploadEmployees: async (file: File): Promise<EmployeeBulkUploadResult> => {
+    const body = new FormData()
+    body.append('file', file)
+    return (await api.post('/admin/employees/bulk-upload/', body)).data
+  },
+  downloadEmployeeTemplate: async (): Promise<Blob> =>
+    (await api.get('/admin/employees/bulk-upload/', { responseType: 'blob' })).data,
 }
 
 export const adminKeys = {
