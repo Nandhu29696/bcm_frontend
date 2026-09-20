@@ -11,19 +11,22 @@ import {
   Modal,
   PageHeader,
   Spinner,
+  StatusBadge,
   Textarea,
 } from '@/components/ui'
-import { IconChevronRight } from '@/components/icons'
+import { IconChevronRight, IconEdit } from '@/components/icons'
 import { estateKeys } from '@/features/estates/api'
 import { CostCodeOperations } from '@/features/operations/CostCodeOperations'
 import type { NamedRef } from '@/features/estates/types'
 import { ROLE } from '@/features/auth/types'
 import { useHasRole } from '@/features/auth/useAuth'
+import { reviewApi, reviewKeys } from '@/features/review/api'
 
 import { planKeys, plansApi } from './api'
 import { AssignCoordinatorModal } from './AssignCoordinatorModal'
 import { EditCostCodeModal } from './EditCostCodeModal'
 import { HistoryModal } from './HistoryTimeline'
+import { formatDateTime } from './format'
 import type { PlanVersion } from './types'
 import { VersionList } from './VersionList'
 
@@ -56,7 +59,12 @@ export function CostCodeDetailPage() {
     queryFn: () => plansApi.versions(costCodeId),
     enabled: Number.isInteger(costCodeId),
   })
-
+  const currentVersionId = versions.data?.versions.find((version) => version.is_current)?.plan_version_id
+  const readiness = useQuery({
+    queryKey: reviewKeys.readiness(currentVersionId ?? 0),
+    queryFn: () => reviewApi.readiness(currentVersionId as number),
+    enabled: currentVersionId !== undefined,
+  })
   const requestedKind = searchParams.get('action')
   const panelKind = PANEL_KINDS.find((kind) => kind === requestedKind) ?? null
   const requestedVersionId = Number(searchParams.get('version'))
@@ -103,6 +111,7 @@ export function CostCodeDetailPage() {
 
   const detail = costCode.data
   const versionList = versions.data.versions
+  const currentVersion = versionList.find((version) => version.is_current)
   // The version a panel acts on, resolved from the live list on every render —
   // so after a coordinator is removed the modal shows the refetched roster, not
   // the roster it was opened with. Falls back to the current version, which is
@@ -134,31 +143,80 @@ export function CostCodeDetailPage() {
             )}
           </span>
         }
-        subtitle={detail.process ? `${detail.process.name}${detail.subprocess ? ` · ${detail.subprocess.name}` : ''}` : undefined}
+        subtitle={
+          detail.process ? (
+            <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="font-semibold text-brand-700">{detail.process.name}</span>
+              {detail.subprocess && (
+                <>
+                  <span aria-hidden="true" className="text-ink-300">·</span>
+                  <span className="font-semibold text-teal-700">{detail.subprocess.name}</span>
+                </>
+              )}
+            </span>
+          ) : undefined
+        }
       >
-        {canAuthor && (
-          <Button variant="secondary" onClick={() => openPanel('edit')}>
-            Edit cost code
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-ink-600">
+          {currentVersion && currentVersionId && (
+            <>
+              <StatusBadge status={currentVersion.status} />
+              <span>
+                <strong className="font-semibold text-ink-900">
+                  {readiness.data ? `${readiness.data.completion_percent}%` : '—'}
+                </strong>{' '}
+                complete
+              </span>
+              <span>
+                <strong className="font-semibold text-ink-900">
+                  {currentVersion.coordinators.length}
+                </strong>{' '}
+                coordinator{currentVersion.coordinators.length === 1 ? '' : 's'}
+              </span>
+            </>
+          )}
+          <span>Updated {formatDateTime(detail.updated_at)}</span>
+        </div>
       </PageHeader>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <section aria-label="Cost code details" className="h-fit rounded-card border border-ink-200/80 bg-white p-5 shadow-card animate-fade-up">
-          <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Details</h2>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2.5 text-sm">
-            <Detail label="Process" value={detail.process} />
-            <Detail label="Subprocess" value={detail.subprocess} />
-            <Detail label="Region" value={detail.region} />
-            <Detail label="Location" value={detail.location} />
-            <Detail label="Centre" value={detail.center} />
-            <Detail label="BU lead" value={detail.bu_lead} />
-            <Detail label="Line of business" value={detail.lob} />
-          </dl>
-        </section>
+      {/* Details as a strip across the top, not a sidebar: the version list
+          below is tall and a narrow column beside it left most of the page
+          empty. Four fields per row on a wide screen, wrapping below. */}
+      <section aria-label="Cost code details" className="mb-6 rounded-card border border-ink-200/80 bg-white px-4 py-3 shadow-card animate-fade-up">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div className="flex items-baseline gap-2">
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Details</h2>
+            <span className="text-xs text-ink-400">Scope and ownership</span>
+          </div>
+          {canAuthor && (
+            <button
+              type="button"
+              className="inline-flex h-8 items-center gap-1.5 rounded-control border border-transparent px-2 text-xs font-medium text-ink-500 transition-colors hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
+              onClick={() => openPanel('edit')}
+              aria-label="Edit cost code details"
+              title="Edit cost code details"
+            >
+              <IconEdit size={14} /> Edit
+            </button>
+          )}
+        </div>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
+          <Detail label="Process" value={detail.process} />
+          <Detail label="Subprocess" value={detail.subprocess} />
+          <Detail label="Line of business" value={detail.lob} />
+          <Detail label="BU lead" value={detail.bu_lead} />
+          <Detail label="Region" value={detail.region} />
+          <Detail label="Location" value={detail.location} />
+          <Detail label="Centre" value={detail.center} />
+        </dl>
+      </section>
 
+      <div>
         <section aria-label="Plan versions" className="animate-fade-up">
-          <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Business continuity plan</h2>
+          <h2 className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-700">
+            <span aria-hidden="true" className="h-4 w-1 rounded-full bg-brand-500" />
+            Business continuity plan
+          </h2>
           {versionList.length === 0 ? (
             <EmptyState
               title="No plan has been started for this cost code"
@@ -217,10 +275,12 @@ export function CostCodeDetailPage() {
 
 function Detail({ label, value }: { label: string; value: NamedRef | null }) {
   return (
-    <>
-      <dt className="text-ink-500">{label}</dt>
-      <dd className="font-medium text-ink-900">{value ? value.name : <span className="font-normal text-ink-400">—</span>}</dd>
-    </>
+    <div className="min-w-0">
+      <dt className="text-[11px] font-medium uppercase tracking-[0.06em] text-ink-400">{label}</dt>
+      <dd className="mt-0.5 break-words text-sm font-medium text-ink-900">
+        {value ? value.name : <span className="font-normal text-ink-400">—</span>}
+      </dd>
+    </div>
   )
 }
 

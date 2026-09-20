@@ -99,7 +99,9 @@ export function NotificationBell() {
                 >
                   <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${n.read_at ? 'bg-transparent' : 'bg-brand-500'}`} aria-hidden="true" />
                   <span className="min-w-0 flex-1">
-                    <span className={`block truncate text-sm ${n.read_at ? 'text-ink-700' : 'font-medium text-ink-900'}`}>{n.title}</span>
+                    <span className={`line-clamp-2 block text-sm leading-snug ${n.read_at ? 'text-ink-700' : 'font-medium text-ink-900'}`} title={n.title}>
+                      {n.title}
+                    </span>
                     {n.body && <span className="mt-0.5 line-clamp-2 block text-xs text-ink-500">{n.body}</span>}
                     <span className="mt-1 block text-[11px] text-ink-400">{formatDateTime(n.created_at)}</span>
                   </span>

@@ -56,7 +56,7 @@ export const adminApi = {
   users: async (filters: UserFilters): Promise<Paginated<AdminUser>> =>
     (
       await api.get('/admin/users/', {
-        params: Object.fromEntries(Object.entries({ ...filters, page_size: 50 }).filter(([, v]) => v !== '' && v !== undefined)),
+        params: Object.fromEntries(Object.entries({ ...filters, page_size: 5 }).filter(([, v]) => v !== '' && v !== undefined)),
       })
     ).data,
   user: async (id: number): Promise<AdminUser> => (await api.get(`/admin/users/${id}/`)).data,

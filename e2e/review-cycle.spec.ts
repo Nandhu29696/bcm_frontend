@@ -29,7 +29,7 @@ function current(page: Page) {
 }
 
 function sectionTab(page: Page, name: string) {
-  return page.getByRole('tablist', { name: /sections/i }).getByRole('tab', { name: new RegExp(`^${name} ([0-9]+%|Done)$`) })
+  return page.getByRole('tablist', { name: /sections/i }).getByRole('tab', { name: new RegExp(`^${name} ([0-9]+%|[0-9]+ left|Done)$`) })
 }
 
 function question(page: Page, text: RegExp) {
@@ -81,7 +81,7 @@ async function completeThePlan(page: Page) {
   await question(page, /outsourced or Sub contracted/).getByRole('radio', { name: 'No' }).check()
   await question(page, /dedicated Corp Function support/).getByRole('radio', { name: 'No' }).check()
   await question(page, /third party support for BAU/).getByRole('radio', { name: 'No' }).check()
-  await expect(page.getByText(/6 of 6 sections complete/)).toBeVisible()
+  await expect(page.getByText(/Questionnaire 6 of 6/)).toBeVisible()
   await expect(page.getByText(/All changes saved/)).toBeVisible()
 }
 

@@ -4,7 +4,9 @@ import { useSearchParams } from 'react-router-dom'
 
 import { toApiError } from '@/api/client'
 import { useToast } from '@/components/useToast'
-import { Alert, Badge, Button, EmptyState, Field, Input, Modal, PageHeader, Select, Spinner, Textarea } from '@/components/ui'
+import { pageOf } from '@/components/paging'
+import { Alert, Badge, Button, EmptyState, Field, FilterBar, FilterItem, Input, Modal, PageHeader, Pager, Select, TableSkeleton, Textarea } from '@/components/ui'
+import { formatDate } from '@/features/operations/format'
 import { reviewApi } from '@/features/review/api'
 
 import { insightsApi, insightsKeys, type HelpResource } from './api'
@@ -14,6 +16,7 @@ export function HelpPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const q = searchParams.get('q') ?? ''
   const category = searchParams.get('category') ?? ''
+  const page = Math.max(1, Number(searchParams.get('page')) || 1)
   const queryClient = useQueryClient()
   const toast = useToast()
   const library = useQuery({ queryKey: insightsKeys.help(q, category), queryFn: () => insightsApi.help(q, category) })
@@ -24,6 +27,7 @@ export function HelpPage() {
     const next = new URLSearchParams(searchParams)
     if (value) next.set(key, value)
     else next.delete(key)
+    if (key !== 'page') next.delete('page')
     setSearchParams(next, { replace: true })
   }
   function refresh() {
@@ -36,8 +40,10 @@ export function HelpPage() {
   })
 
   const canManage = library.data?.can_manage ?? false
-  const grouped = new Map<string, HelpResource[]>()
-  for (const r of library.data?.results ?? []) grouped.set(r.category || 'General', [...(grouped.get(r.category || 'General') ?? []), r])
+  // One table, ordered by category then title, so a category reads as a block.
+  const rows = [...(library.data?.results ?? [])].sort(
+    (a, b) => (a.category || 'General').localeCompare(b.category || 'General') || a.title.localeCompare(b.title),
+  )
 
   return (
     <>
@@ -45,67 +51,96 @@ export function HelpPage() {
         {canManage && <Button onClick={() => setEditing('new')}>Add document</Button>}
       </PageHeader>
 
-      <div className="mb-5 flex flex-wrap gap-2">
-        <Input
-          type="search"
-          value={q}
-          onChange={(e) => setParam('q', e.target.value)}
-          placeholder="Search titles, descriptions and file names"
-          aria-label="Search help"
-          className="max-w-md"
-        />
-        <Select value={category} onChange={(e) => setParam('category', e.target.value)} aria-label="Category" className="w-48">
-          <option value="">All categories</option>
-          {categories.data?.map((c) => (
-            <option key={c}>{c}</option>
-          ))}
-        </Select>
-      </div>
+      <FilterBar
+        active={[q, category].filter(Boolean).length}
+        onClear={() => setSearchParams({}, { replace: true })}
+        count={library.data ? `${rows.length} document${rows.length === 1 ? '' : 's'}` : undefined}
+      >
+        <FilterItem className="min-w-[16rem] flex-1 sm:max-w-md">
+          <Input
+            type="search"
+            value={q}
+            onChange={(e) => setParam('q', e.target.value)}
+            placeholder="Search titles, descriptions and file names"
+            aria-label="Search help"
+          />
+        </FilterItem>
+        <FilterItem>
+          <Select value={category} onChange={(e) => setParam('category', e.target.value)} aria-label="Category">
+            <option value="">All categories</option>
+            {categories.data?.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </Select>
+        </FilterItem>
+      </FilterBar>
 
       {library.isPending ? (
-        <div className="py-16 text-center">
-          <Spinner label="Loading the library" />
-        </div>
+        <TableSkeleton cols={5} label="Loading the library" />
       ) : library.error ? (
         <Alert>{toApiError(library.error).detail}</Alert>
-      ) : grouped.size === 0 ? (
+      ) : rows.length === 0 ? (
         <EmptyState title={q || category ? 'Nothing matches' : 'The library is empty'} description={canManage ? 'Add the first document.' : 'Documents added by the BCM team appear here.'} />
       ) : (
-        <div className="space-y-6">
-          {[...grouped.entries()].map(([name, items]) => (
-            <section key={name} aria-label={name}>
-              <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">{name}</h2>
-              <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {items.map((r) => (
-                  <li key={r.help_resource_id} className="flex flex-col rounded-card border border-ink-200/80 bg-white p-4 shadow-card">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-medium text-ink-900">{r.title}</h3>
-                      {r.document && <Badge>{r.document.file_name.split('.').pop()?.toUpperCase()}</Badge>}
-                    </div>
-                    {r.description && <p className="mt-1 text-sm text-ink-600">{r.description}</p>}
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {r.document?.entity_document_id && (
-                        <Button size="sm" onClick={() => download.mutate(r.document!.entity_document_id as number)} disabled={download.isPending}>
-                          Download
-                        </Button>
+        <div className="overflow-hidden rounded-card border border-ink-200/80 bg-white shadow-card">
+          <div className="overflow-x-auto">
+            <table className="data-table" aria-label="Help documents">
+              <thead>
+                <tr>
+                  <th>Document</th>
+                  <th>Category</th>
+                  <th>File</th>
+                  <th>Added</th>
+                  <th className="text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageOf(rows, page).map((r) => (
+                  <tr key={r.help_resource_id}>
+                    <td className="max-w-md">
+                      <span className="block font-medium text-ink-900">{r.title}</span>
+                      {r.description && <span className="mt-0.5 block text-xs text-ink-500">{r.description}</span>}
+                    </td>
+                    <td className="whitespace-nowrap">{r.category || 'General'}</td>
+                    <td className="whitespace-nowrap">
+                      {r.document ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Badge>{r.document.file_name.split('.').pop()?.toUpperCase()}</Badge>
+                          <span className="text-xs text-ink-500">{r.document.file_name}</span>
+                        </span>
+                      ) : (
+                        <span className="text-ink-400">—</span>
                       )}
-                      {canManage && (
-                        <>
-                          <Button size="sm" variant="ghost" onClick={() => setEditing(r)}>
-                            Edit
+                    </td>
+                    <td className="whitespace-nowrap text-xs">
+                      {r.created_by_name || '—'}
+                      <span className="block text-ink-400">{formatDate(r.created_at)}</span>
+                    </td>
+                    <td className="whitespace-nowrap text-right">
+                      <span className="inline-flex items-center gap-1">
+                        {r.document?.entity_document_id && (
+                          <Button size="sm" onClick={() => download.mutate(r.document!.entity_document_id as number)} disabled={download.isPending} aria-label={`Download ${r.title}`}>
+                            Download
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => remove.mutate(r.help_resource_id)} aria-label={`Remove ${r.title}`}>
-                            Remove
-                          </Button>
-                        </>
-                      )}
-                      <span className="ml-auto text-xs text-ink-400">{r.document?.file_name}</span>
-                    </div>
-                  </li>
+                        )}
+                        {canManage && (
+                          <>
+                            <Button size="sm" variant="ghost" onClick={() => setEditing(r)} aria-label={`Edit ${r.title}`}>
+                              Edit
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => remove.mutate(r.help_resource_id)} aria-label={`Remove ${r.title}`}>
+                              Remove
+                            </Button>
+                          </>
+                        )}
+                      </span>
+                    </td>
+                  </tr>
                 ))}
-              </ul>
-            </section>
-          ))}
+              </tbody>
+            </table>
+          </div>
+          <Pager page={page} total={rows.length} onPage={(n) => setParam('page', String(n))} label="Document pages" />
         </div>
       )}
 

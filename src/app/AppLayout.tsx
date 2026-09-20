@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 
 import {
   BrandMark,
+  IconActivity,
   IconAlert,
   IconBell,
   IconBuildings,
@@ -43,6 +44,7 @@ const TITLES: [string, string][] = [
   ['/help', 'Help'],
   ['/admin', 'Administration'],
   ['/profile', 'My profile'],
+  ['/system', 'System'],
 ]
 
 /**
@@ -57,7 +59,7 @@ export function AppLayout() {
   const [open, setOpen] = useState(false)
 
   const roleLabel = user?.role_codes.length ? user.role_codes.map(prettyRole).join(', ') : 'No role assigned'
-  const section = TITLES.find(([prefix]) => location.pathname.startsWith(prefix))?.[1] ?? 'BCM'
+  const section = TITLES.find(([prefix]) => location.pathname.startsWith(prefix))?.[1] ?? 'Page not found'
 
   async function handleSignOut() {
     await signOut()
@@ -65,10 +67,10 @@ export function AppLayout() {
   }
 
   return (
-    <div className="flex min-h-full bg-ink-100">
+    <div className="flex h-screen overflow-hidden bg-ink-100">
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex w-64 flex-col bg-brand-950 text-white transition-transform lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-30 flex h-screen w-64 shrink-0 flex-col overflow-y-auto bg-brand-950 text-white transition-transform lg:static lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
         style={{ backgroundImage: 'radial-gradient(120% 60% at 0% 0%, oklch(0.32 0.12 270 / 0.6), transparent 60%)' }}
@@ -93,14 +95,15 @@ export function AppLayout() {
             <p className="px-3 pb-2 pt-5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/35">Administration</p>
             <NavItem to="/admin/users" label="Users" icon={IconUsers} onNavigate={() => setOpen(false)} />
             <NavItem to="/admin/notifications" label="Notification delivery" icon={IconBell} onNavigate={() => setOpen(false)} />
+            <NavItem to="/system/health" label="System health" icon={IconActivity} onNavigate={() => setOpen(false)} />
           </Can>
         </nav>
 
-        <div className="border-t border-white/10 p-3">
+        <div className="flex items-center gap-1 border-t border-white/10 p-3">
           <Link
             to="/profile"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-3 rounded-control px-2 py-2 transition-colors hover:bg-white/8"
+            className="flex min-w-0 flex-1 items-center gap-3 rounded-control px-2 py-2 transition-colors hover:bg-white/8"
             aria-label="My profile"
           >
             <Avatar name={user?.display_name ?? '?'} src={user?.avatar_data_url} />
@@ -109,13 +112,22 @@ export function AppLayout() {
               <div className="truncate text-[11px] text-white/50">{roleLabel}</div>
             </div>
           </Link>
+          <button
+            type="button"
+            onClick={() => void handleSignOut()}
+            className="rounded-control p-2 text-white/50 transition-colors hover:bg-white/8 hover:text-white"
+            aria-label="Sign out"
+            title="Sign out"
+          >
+            <IconLogout size={16} />
+          </button>
         </div>
       </aside>
 
       {open && <button type="button" aria-label="Close navigation" onClick={() => setOpen(false)} className="fixed inset-0 z-20 bg-ink-950/40 lg:hidden" />}
 
       {/* Canvas */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b border-ink-200/70 bg-white/85 px-4 backdrop-blur lg:px-8">
           <button type="button" onClick={() => setOpen(true)} aria-label="Open navigation" className="rounded-control p-2 text-ink-600 hover:bg-ink-100 lg:hidden">
             <span className="block h-0.5 w-5 bg-current" />
@@ -133,8 +145,10 @@ export function AppLayout() {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 lg:px-8">
+        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-8 lg:px-8">
+          <div className="mx-auto w-full max-w-7xl">
           <Outlet />
+          </div>
         </main>
       </div>
     </div>

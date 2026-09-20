@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 
 import { toApiError } from '@/api/client'
-import { Alert, Button, EmptyState, Field, Input, Modal, Spinner } from '@/components/ui'
+import { pageOf } from '@/components/paging'
+import { Alert, Button, EmptyState, Field, Input, Modal, Pager, Spinner } from '@/components/ui'
 
 import { opsApi, opsKeys, type CmscMember, type CmscMemberInput, type UploadResult } from './api'
 
@@ -27,6 +28,7 @@ export function RosterPanel({ costCodeId }: { costCodeId: number }) {
   const roster = useQuery({ queryKey: opsKeys.roster(costCodeId), queryFn: () => opsApi.roster(costCodeId) })
   const [editing, setEditing] = useState<CmscMember | 'new' | null>(null)
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
+  const [page, setPage] = useState(1)
   const fileInput = useRef<HTMLInputElement>(null)
 
   function refresh() {
@@ -130,7 +132,7 @@ export function RosterPanel({ costCodeId }: { costCodeId: number }) {
               </tr>
             </thead>
             <tbody>
-              {results.map((member) => (
+              {pageOf(results, page).map((member) => (
                 <tr key={member.cmsc_member_id}>
                   <td className="font-medium text-ink-900">{member.member_name}</td>
                   <td className="whitespace-nowrap tabular-nums">
@@ -162,6 +164,7 @@ export function RosterPanel({ costCodeId }: { costCodeId: number }) {
               ))}
             </tbody>
           </table>
+          <Pager page={page} total={results.length} onPage={setPage} label="Roster pages" />
         </div>
       )}
 

@@ -28,7 +28,8 @@ export function RiskRegister({ versionId, readOnly }: { versionId: number; readO
 
   return (
     <div className="space-y-6">
-      <HeatMap risks={risks.data ?? []} options={options.data} />
+      {/* The heat map only means something once there is a risk to place on it. */}
+      {(risks.data?.length ?? 0) > 0 && <HeatMap risks={risks.data ?? []} options={options.data} />}
 
       <RowEditor<Risk & Record<string, unknown>>
         versionId={versionId}

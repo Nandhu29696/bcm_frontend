@@ -18,6 +18,9 @@ export interface Readiness {
   is_approver: boolean
   is_author: boolean
   incomplete_sections: IncompleteSection[]
+  completed_sections: number
+  total_sections: number
+  completion_percent: number
 }
 
 export interface QueueRow extends PlanVersion {

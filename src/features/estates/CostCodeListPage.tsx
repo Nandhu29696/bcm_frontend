@@ -5,18 +5,11 @@ import {
   useTable,
 } from '@tanstack/react-table'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { toApiError } from '@/api/client'
 import { IconArrowLeft } from '@/components/icons'
-import {
-  Alert,
-  Button,
-  EmptyState,
-  PageHeader,
-  Spinner,
-  StatusBadge,
-} from '@/components/ui'
+import { Alert, Button, EmptyState, PageHeader, Pager, Spinner, StatusBadge } from '@/components/ui'
 
 import { estateApi, estateKeys } from './api'
 import { FilterBar } from './FilterBar'
@@ -79,8 +72,13 @@ const columns = column.columns([
     header: 'Version',
     cell: (info) => {
       const version = info.getValue()
+      const versionId = info.row.original.current_plan_version_id
       return version === null ? (
         <span className="text-ink-400">—</span>
+      ) : versionId ? (
+        <Link to={`/plan-versions/${versionId}`} className="tabular-nums text-brand-700 hover:underline" title="Open the current plan">
+          v{version}
+        </Link>
       ) : (
         <span className="tabular-nums text-ink-700">v{version}</span>
       )
@@ -95,6 +93,7 @@ const columns = column.columns([
 
 export function CostCodeListPage() {
   const { estateId: estateIdParam } = useParams()
+  const navigate = useNavigate()
   const estateId = Number(estateIdParam)
   const { filters, setFilter, toggleValue, toggleOrdering, clear, activeCount } =
     useCostCodeFilters()
@@ -167,7 +166,6 @@ export function CostCodeListPage() {
   }
 
   const total = costCodes.data?.count ?? 0
-  const lastPage = Math.max(1, Math.ceil(total / filters.page_size))
 
   return (
     <>
@@ -226,7 +224,7 @@ export function CostCodeListPage() {
       ) : (
         <div className="overflow-hidden rounded-card border border-ink-200/80 bg-white shadow-card">
           <div className="max-h-[calc(100vh-22rem)] overflow-auto">
-            <table className="data-table">
+            <table className="data-table compact estate-table">
               <thead className="sticky top-0 z-10">
                 {table.getHeaderGroups().map((headerGroup) => (
                   <tr key={headerGroup.id}>
@@ -268,7 +266,16 @@ export function CostCodeListPage() {
               </thead>
               <tbody>
                 {table.getRowModel().rows.map((row) => (
-                  <tr key={row.id}>
+                  // The whole row opens the cost code; links and the row menu
+                  // inside it keep their own targets.
+                  <tr
+                    key={row.id}
+                    className="cursor-pointer"
+                    onClick={(event) => {
+                      if ((event.target as HTMLElement).closest('a, button, [role="menu"]')) return
+                      navigate(`/cost-codes/${row.original.cost_code_id}`)
+                    }}
+                  >
                     {row.getAllCells().map((cell) => (
                       <td key={cell.id}>
                         <table.FlexRender cell={cell} />
@@ -280,61 +287,9 @@ export function CostCodeListPage() {
             </table>
           </div>
 
-          <Pagination
-            page={filters.page}
-            lastPage={lastPage}
-            total={total}
-            pageSize={filters.page_size}
-            onPage={(page) => setFilter('page', page)}
-          />
+          <Pager page={filters.page} pageSize={filters.page_size} total={total} onPage={(page) => setFilter('page', page)} label="Cost code pages" />
         </div>
       )}
     </>
-  )
-}
-
-function Pagination({
-  page,
-  lastPage,
-  total,
-  pageSize,
-  onPage,
-}: {
-  page: number
-  lastPage: number
-  total: number
-  pageSize: number
-  onPage: (page: number) => void
-}) {
-  const first = total === 0 ? 0 : (page - 1) * pageSize + 1
-  const last = Math.min(page * pageSize, total)
-
-  return (
-    <div className="flex items-center justify-between border-t border-ink-100 bg-ink-50/60 px-4 py-2.5 text-sm text-ink-600">
-      <span className="tabular-nums">
-        <span className="font-medium text-ink-900">{first}–{last}</span> of {total}
-      </span>
-      <div className="flex items-center gap-2">
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={page <= 1}
-          onClick={() => onPage(page - 1)}
-        >
-          Previous
-        </Button>
-        <span className="px-1 tabular-nums">
-          Page {page} of {lastPage}
-        </span>
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={page >= lastPage}
-          onClick={() => onPage(page + 1)}
-        >
-          Next
-        </Button>
-      </div>
-    </div>
   )
 }

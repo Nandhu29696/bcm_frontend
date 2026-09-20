@@ -197,9 +197,18 @@ function Editor({ questionnaire, version }: { questionnaire: Questionnaire; vers
                 {!questionnaire.editable ? 'Read-only: this version is closed' : 'Read-only: you are not an author'}
               </Badge>
             )}
+            {version && (
+              // What the plan is for, so nobody has to go back to the cost code to check.
+              <span className="text-ink-500">
+                {[version.process_name, version.estate_name].filter(Boolean).join(' · ')}
+                {version.bu_lead_name && <span> · BU lead {version.bu_lead_name}</span>}
+              </span>
+            )}
           </span>
         }
       >
+        {/* Save state first, the primary action last at the right edge. */}
+        <SaveIndicator unsaved={unsaved} failed={failed} readOnly={readOnly} />
         {version && (
           <ReviewActions
             version={version}
@@ -210,7 +219,6 @@ function Editor({ questionnaire, version }: { questionnaire: Questionnaire; vers
             }}
           />
         )}
-        <SaveIndicator unsaved={unsaved} failed={failed} readOnly={readOnly} />
       </PageHeader>
 
       {/* Parts of the plan: questionnaire, the hub, then BIA / RA / Plan */}
@@ -254,7 +262,9 @@ function Editor({ questionnaire, version }: { questionnaire: Questionnaire; vers
               style={{ width: `${overall.total ? (100 * overall.done) / overall.total : 0}%` }}
             />
           </span>
-          <span className="tabular-nums">{overall.done} of {overall.total} sections complete</span>
+          <span className="tabular-nums" title="The questionnaire sections. BIA, RA and Plan have their own status on the Recovery objective part.">
+            Questionnaire {overall.done} of {overall.total}
+          </span>
         </span>
       </nav>
 
@@ -279,7 +289,11 @@ function Editor({ questionnaire, version }: { questionnaire: Questionnaire; vers
                   }`}
                 >
                   {section.section_name}
-                  <CompletionBadge status={p?.status ?? section.status} percent={p?.percent ?? section.percent} />
+                  <CompletionBadge
+                    status={p?.status ?? section.status}
+                    percent={p?.percent ?? section.percent}
+                    remaining={(p?.required_visible ?? section.required_visible) - (p?.required_answered ?? section.required_answered)}
+                  />
                 </button>
               )
             })}
@@ -366,16 +380,14 @@ function Editor({ questionnaire, version }: { questionnaire: Questionnaire; vers
   )
 }
 
-function CompletionBadge({ status, percent }: { status: string; percent: number }) {
-  const tone =
-    status === 'Completed'
-      ? 'bg-emerald-100 text-emerald-800'
-      : status === 'In Progress'
-        ? 'bg-amber-100 text-amber-800'
-        : 'bg-ink-100 text-ink-600'
+function CompletionBadge({ status, percent, remaining }: { status: string; percent: number; remaining: number }) {
+  // Done is green; anything short of it is amber with what is still required,
+  // so the tab that blocks submission is the one that stands out.
+  const tone = status === 'Completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+  const label = status === 'Completed' ? 'Done' : remaining > 0 ? `${remaining} left` : `${percent}%`
   return (
-    <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${tone}`}>
-      {status === 'Completed' ? 'Done' : `${percent}%`}
+    <span className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold tabular-nums ${tone}`} title={status === 'Completed' ? 'Every required question answered' : `${remaining} required question${remaining === 1 ? '' : 's'} still to answer`}>
+      {label}
     </span>
   )
 }
@@ -401,6 +413,9 @@ function SaveIndicator({ unsaved, failed, readOnly }: { unsaved: boolean; failed
   )
 }
 
+/** Answer types whose control is small enough to sit on the question's line. */
+const INLINE_TYPES = new Set<EditorQuestion['answer_type']>(['SINGLE_CHOICE', 'NUMBER', 'DATE'])
+
 function QuestionCard({
   question,
   answer,
@@ -424,64 +439,77 @@ function QuestionCard({
   versionId: number
   onProgress: (sections: SectionProgress[]) => void
 }) {
+  // Short controls (a Yes/No, a number) sit on the same line as the question;
+  // a sub-form or a text box takes the full width beneath it.
+  const inline = INLINE_TYPES.has(question.answer_type)
+  const answeredBy = saveState?.answeredBy ?? question.answered_by
+  const control = <QuestionRenderer question={question} answer={answer} disabled={readOnly} onChange={onChange} />
+  const comments = (
+    <button
+      type="button"
+      onClick={onComments}
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs transition-colors ${
+        commentCount ? 'bg-brand-50 text-brand-700 hover:bg-brand-100' : 'text-ink-400 hover:bg-ink-100 hover:text-ink-900'
+      }`}
+      aria-label={`Comments on ${question.question_code}`}
+      title="Comments"
+    >
+      <IconComment size={14} /> {commentCount}
+    </button>
+  )
+
   return (
     <article
       aria-labelledby={`q-${question.question_id}-label`}
-      className="rounded-card border border-ink-200/80 bg-white p-5 shadow-card transition-shadow focus-within:border-brand-300 focus-within:shadow-raised animate-fade-up"
+      className="rounded-card border border-ink-200/80 bg-white px-5 py-3.5 shadow-card transition-shadow focus-within:border-brand-300 focus-within:shadow-raised animate-fade-up"
     >
-      <div className="mb-4 flex items-start justify-between gap-3">
-        <div>
+      <div className={`gap-x-6 gap-y-3 ${inline ? 'md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-center' : 'space-y-3'}`}>
+        <div className="min-w-0">
           <p id={`q-${question.question_id}-label`} className="text-[15px] font-medium leading-snug text-ink-950">
             {question.question_text}
             {question.required && <span className="ml-1 text-red-500" title="Required">*</span>}
           </p>
           {question.question_description && (
-            <p className="mt-1 text-xs text-ink-500">{question.question_description}</p>
+            <p className="mt-0.5 text-xs text-ink-500">{question.question_description}</p>
           )}
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-ink-400">
+            {answeredBy && <span>Answered by {answeredBy}</span>}
+            <span aria-live="polite">
+              {saveState?.state === 'saving' && 'Saving'}
+              {saveState?.state === 'dirty' && 'Unsaved'}
+              {saveState?.state === 'saved' && (
+                <span className="inline-flex items-center gap-1 text-emerald-700">
+                  <IconCheck size={12} /> <span>Saved</span>
+                </span>
+              )}
+              {saveState?.state === 'error' && (
+                <span className="text-red-600">
+                  {saveState.error}{' '}
+                  <button type="button" onClick={onRetry} className="underline">
+                    Retry
+                  </button>
+                </span>
+              )}
+            </span>
+          </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2 text-xs">
-          <span className="rounded-full bg-ink-100 px-2 py-0.5 font-mono text-[11px] text-ink-500">{question.question_code}</span>
-          <button
-            type="button"
-            onClick={onComments}
-            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 transition-colors ${
-              commentCount ? 'bg-brand-50 text-brand-700 hover:bg-brand-100' : 'text-ink-500 hover:bg-ink-100 hover:text-ink-900'
-            }`}
-            aria-label={`Comments on ${question.question_code}`}
-          >
-            <IconComment size={14} /> {commentCount}
-          </button>
-        </div>
-      </div>
 
-      <QuestionRenderer question={question} answer={answer} disabled={readOnly} onChange={onChange} />
+        {inline ? (
+          <div className="flex items-center gap-2 md:justify-end">
+            {control}
+            {comments}
+          </div>
+        ) : (
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">{control}</div>
+            {comments}
+          </div>
+        )}
+      </div>
 
       {wantsEvidence(question, answer) && (
         <EvidencePanel versionId={versionId} question={question} readOnly={readOnly} onProgress={onProgress} />
       )}
-
-      <div className="mt-3 flex items-center justify-between border-t border-ink-100 pt-2.5 text-xs text-ink-500">
-        <span>
-          {saveState?.answeredBy
-            ? `Answered by ${saveState.answeredBy}`
-            : question.answered_by
-              ? `Answered by ${question.answered_by}`
-              : ''}
-        </span>
-        <span aria-live="polite">
-          {saveState?.state === 'saving' && 'Saving'}
-          {saveState?.state === 'dirty' && 'Unsaved'}
-          {saveState?.state === 'saved' && <span className="text-emerald-700">Saved</span>}
-          {saveState?.state === 'error' && (
-            <span className="text-red-600">
-              {saveState.error}{' '}
-              <button type="button" onClick={onRetry} className="underline">
-                Retry
-              </button>
-            </span>
-          )}
-        </span>
-      </div>
     </article>
   )
 }

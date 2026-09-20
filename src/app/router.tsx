@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Link, Navigate } from 'react-router-dom'
 
 import { page } from '@/app/lazy'
 
@@ -93,7 +93,11 @@ export const router = createBrowserRouter([
       {
         path: '*',
         element: (
-          <PlaceholderPage title="Not found" phase="" description="No such page." />
+          <PlaceholderPage title="Page not found" phase="" description="There is nothing at this address. It may have moved, or the link may be wrong.">
+            <Link to="/estates" className="text-sm font-medium text-brand-700 hover:underline">
+              Back to estates
+            </Link>
+          </PlaceholderPage>
         ),
       },
     ],

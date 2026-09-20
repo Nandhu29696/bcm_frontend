@@ -25,7 +25,10 @@ export function CostCodeOperations({ costCodeId }: { costCodeId: number }) {
     <div className="mt-6 grid gap-6 lg:grid-cols-2">
       <section aria-label="Tests" className="rounded-card border border-ink-200/80 bg-white p-5 shadow-card">
         <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Tests</h2>
+          <div>
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Tests</h2>
+            <p className="mt-1 text-xs text-ink-400">{tests.data?.length ?? 0} total</p>
+          </div>
           {canManage !== false && (
             <Button size="sm" variant="secondary" onClick={() => setDialog('test')}>
               Schedule
@@ -33,6 +36,7 @@ export function CostCodeOperations({ costCodeId }: { costCodeId: number }) {
           )}
         </div>
         {tests.data?.length ? (
+          <>
           <ul className="divide-y divide-ink-100 text-sm">
             {tests.data.slice(0, 6).map((t) => (
               <li key={t.test_id} className="flex items-center justify-between gap-3 py-2">
@@ -44,6 +48,12 @@ export function CostCodeOperations({ costCodeId }: { costCodeId: number }) {
               </li>
             ))}
           </ul>
+          {tests.data.length > 6 && (
+            <Link to="/tests" className="mt-3 block text-xs font-semibold text-brand-700 hover:underline">
+              View all tests ({tests.data.length - 6} more)
+            </Link>
+          )}
+          </>
         ) : (
           <p className="text-sm text-ink-500">{tests.isPending ? 'Loading' : 'No tests scheduled.'}</p>
         )}
@@ -51,7 +61,10 @@ export function CostCodeOperations({ costCodeId }: { costCodeId: number }) {
 
       <section aria-label="Crisis events" className="rounded-card border border-ink-200/80 bg-white p-5 shadow-card">
         <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Crisis events</h2>
+          <div>
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Crisis events</h2>
+            <p className="mt-1 text-xs text-ink-400">{events.data?.length ?? 0} total</p>
+          </div>
           {canManage !== false && (
             <Button size="sm" variant="secondary" onClick={() => setDialog('event')}>
               Declare
@@ -59,6 +72,7 @@ export function CostCodeOperations({ costCodeId }: { costCodeId: number }) {
           )}
         </div>
         {events.data?.length ? (
+          <>
           <ul className="divide-y divide-ink-100 text-sm">
             {events.data.slice(0, 6).map((e) => (
               <li key={e.crisis_event_id} className="flex items-center justify-between gap-3 py-2">
@@ -70,6 +84,12 @@ export function CostCodeOperations({ costCodeId }: { costCodeId: number }) {
               </li>
             ))}
           </ul>
+          {events.data.length > 6 && (
+            <Link to="/crisis" className="mt-3 block text-xs font-semibold text-brand-700 hover:underline">
+              View all events ({events.data.length - 6} more)
+            </Link>
+          )}
+          </>
         ) : (
           <p className="text-sm text-ink-500">{events.isPending ? 'Loading' : 'No crisis events.'}</p>
         )}

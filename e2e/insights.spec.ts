@@ -54,23 +54,23 @@ test.describe('help library', () => {
     await dialog.getByLabel('File').setInputFiles({ name: 'e2e-guide.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 e2e guide') })
     await dialog.getByRole('button', { name: /add document/i }).click()
     await expect(dialog).toHaveCount(0)
-    await expect(admin.getByRole('heading', { name: title })).toBeVisible()
+    await expect(admin.getByRole('row').filter({ hasText: title })).toBeVisible()
 
     const arun = await browser.newPage()
     await signIn(arun, COORDINATOR)
     await arun.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Help' }).click()
     await arun.getByLabel('Search help').fill('browser suite')
-    const card = arun.getByRole('listitem').filter({ hasText: title })
-    await expect(card).toBeVisible()
+    const row = arun.getByRole('row').filter({ hasText: title })
+    await expect(row).toBeVisible()
     await expect(arun.getByRole('button', { name: /add document/i })).toHaveCount(0)
     const downloaded = expectDownload(arun)
-    await card.getByRole('button', { name: /download/i }).click()
+    await row.getByRole('button', { name: /download/i }).click()
     const download = await downloaded
     expect(download.suggestedFilename()).toBe('e2e-guide.pdf')
 
     // Tidy up so the library does not fill with suite guides.
     await admin.getByRole('button', { name: `Remove ${title}` }).click()
-    await expect(admin.getByRole('heading', { name: title })).toHaveCount(0)
+    await expect(admin.getByRole('row').filter({ hasText: title })).toHaveCount(0)
     await admin.close()
     await arun.close()
   })
@@ -78,7 +78,7 @@ test.describe('help library', () => {
   test('a viewer can read the library', async ({ page }) => {
     await signIn(page, VIEWER)
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Help' }).click()
-    await expect(page.getByRole('heading', { name: 'BCM programme overview' })).toBeVisible()
+    await expect(page.getByRole('row').filter({ hasText: 'BCM programme overview' })).toBeVisible()
     await expect(page.getByRole('button', { name: /add document/i })).toHaveCount(0)
   })
 })

@@ -19,10 +19,13 @@ export function ReviewActions({
   version,
   onChanged,
   compact = false,
+  framed = false,
 }: {
   version: Pick<PlanVersion, 'plan_version_id' | 'status' | 'cost_code_id'>
   onChanged?: (next: PlanVersion) => void
   compact?: boolean
+  /** Draw the approve / send-back pair in an amber frame — only when it renders. */
+  framed?: boolean
 }) {
   const queryClient = useQueryClient()
   const toast = useToast()
@@ -65,14 +68,14 @@ export function ReviewActions({
         </Button>
       )}
       {r?.can_review && (
-        <>
+        <div className={framed ? 'flex gap-1 rounded-control border border-amber-200 bg-amber-50/60 p-0.5' : 'contents'}>
           <Button size={size} onClick={() => setDialog('approve')}>
             Approve
           </Button>
           <Button size={size} variant="danger" onClick={() => setDialog('rework')}>
             Send back
           </Button>
-        </>
+        </div>
       )}
 
       {dialog === 'blocked' && (

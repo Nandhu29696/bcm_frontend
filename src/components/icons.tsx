@@ -109,6 +109,12 @@ export const IconMore = (p: IconProps) => (
     <circle cx="18" cy="12" r="1.2" fill="currentColor" />
   </Icon>
 )
+export const IconEdit = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="m4 16.5-.8 4.3 4.3-.8L19 8.5 15.5 5 4 16.5z" />
+    <path d="m13.5 7 3.5 3.5M14 4l1-1a2.12 2.12 0 0 1 3 3l-1 1" />
+  </Icon>
+)
 export const IconInbox = (p: IconProps) => (
   <Icon {...p}>
     <path d="M4 13V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v7M4 13h4l1.5 3h5L16 13h4v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5z" />

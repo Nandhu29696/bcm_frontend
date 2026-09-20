@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 
 import { toApiError } from '@/api/client'
-import { Alert, Badge, Spinner } from '@/components/ui'
+import { Alert, Badge, Input, Spinner } from '@/components/ui'
 import {
   CriticalResourcesEditor,
   NetworkRequirementsEditor,
@@ -117,9 +117,14 @@ export function PeoplePanel({ versionId }: { versionId: number }) {
     queryKey: editorKeys.overview(versionId),
     queryFn: () => editorApi.overview(versionId),
   })
+  const [search, setSearch] = useState('')
   if (overview.isPending) return <Spinner label="Loading people" />
   if (overview.error) return <Alert>{toApiError(overview.error).detail}</Alert>
   const { people } = overview.data
+  const needle = search.trim().toLowerCase()
+  const employees = needle
+    ? people.employees.filter((e) => [e.full_name, e.employee_number, e.designation, e.email, e.bu_lead].some((v) => v.toLowerCase().includes(needle)))
+    : people.employees
 
   return (
     <div className="grid gap-4 lg:grid-cols-3">
@@ -128,8 +133,13 @@ export function PeoplePanel({ versionId }: { versionId: number }) {
         count={people.headcount}
         className="lg:col-span-2"
         aside={<MbcoSummary people={people} />}
-        empty="No employees are recorded against this cost code."
-        rows={people.employees.map((e) => ({
+        toolbar={
+          people.employees.length > 5 ? (
+            <Input type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Find by name, number, designation" aria-label="Find an employee" />
+          ) : undefined
+        }
+        empty={needle ? 'Nobody matches.' : 'No employees are recorded against this cost code.'}
+        rows={employees.map((e) => ({
           key: e.employee_id,
           name: e.full_name,
           meta: [e.employee_number, e.designation, e.bu_lead].filter(Boolean).join(' · '),
@@ -169,10 +179,12 @@ function MbcoSummary({ people }: { people: PlanOverview['people'] }) {
     return <span className="text-xs text-ink-500">Answer the MBCO question to size the minimum team.</span>
   }
   return (
-    <span className="text-xs text-ink-600">
-      MBCO {percent(people.mbco_percent)} of {people.headcount} ={' '}
-      <strong className="font-semibold text-ink-950 tabular-nums">{people.mbco_required ?? 0}</strong> people
-      needed for minimum service
+    <span className="inline-flex items-baseline gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs text-brand-800" title={`MBCO ${percent(people.mbco_percent)} of ${people.headcount} employees`}>
+      <span className="text-lg font-semibold tabular-nums leading-none text-brand-800">
+        {people.mbco_required ?? 0}
+        <span className="text-xs font-normal text-brand-700"> / {people.headcount}</span>
+      </span>
+      <span>needed for minimum service (MBCO {percent(people.mbco_percent)})</span>
     </span>
   )
 }
@@ -183,6 +195,7 @@ function ListCard({
   rows,
   empty,
   aside,
+  toolbar,
   className = '',
 }: {
   title: string
@@ -190,6 +203,7 @@ function ListCard({
   rows: { key: number; name: string; meta: string; email: string }[]
   empty: string
   aside?: ReactNode
+  toolbar?: ReactNode
   className?: string
 }) {
   return (
@@ -201,6 +215,7 @@ function ListCard({
         </h4>
         {aside}
       </header>
+      {toolbar && <div className="border-b border-ink-100 px-5 py-2">{toolbar}</div>}
       {rows.length === 0 ? (
         <p className="px-5 py-5 text-sm text-ink-500">{empty}</p>
       ) : (

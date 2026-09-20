@@ -1,7 +1,10 @@
+import type { ReactNode } from 'react'
+
 interface PlaceholderPageProps {
   title: string
   phase: string
   description: string
+  children?: ReactNode
 }
 
 /** Route stub, so the shell is navigable before the feature exists. */
@@ -9,6 +12,7 @@ export function PlaceholderPage({
   title,
   phase,
   description,
+  children,
 }: PlaceholderPageProps) {
   return (
     <div className="rounded-lg border border-dashed border-ink-300 bg-white p-8">
@@ -21,6 +25,7 @@ export function PlaceholderPage({
         )}
       </div>
       <p className="mt-2 max-w-2xl text-sm text-ink-600">{description}</p>
+      {children && <div className="mt-4">{children}</div>}
     </div>
   )
 }

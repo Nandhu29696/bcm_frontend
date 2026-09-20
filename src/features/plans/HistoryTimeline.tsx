@@ -23,12 +23,12 @@ export function HistoryModal({ version, onClose }: { version: PlanVersion; onClo
       ) : history.data.length === 0 ? (
         <p className="text-sm text-ink-500">No status changes recorded yet.</p>
       ) : (
-        <ol className="relative ml-2 border-l border-ink-200 pl-6">
+        <ol className="relative ml-2 border-l-2 border-brand-100 pl-6">
           {history.data.map((entry) => (
-            <li key={entry.plan_status_history_id} className="mb-6 last:mb-0">
+            <li key={entry.plan_status_history_id} className="relative mb-6 last:mb-0">
               <span
                 aria-hidden="true"
-                className="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full border-2 border-white bg-brand-500"
+                className="absolute -left-[1.85rem] mt-1 h-4 w-4 rounded-full border-4 border-white bg-brand-500 ring-1 ring-brand-200"
               />
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={entry.status} />
@@ -36,7 +36,7 @@ export function HistoryModal({ version, onClose }: { version: PlanVersion; onClo
                   {formatDateTime(entry.changed_at)}
                 </time>
               </div>
-              <p className="mt-1 text-sm text-ink-700">
+              <p className="mt-1 text-sm leading-relaxed text-ink-700">
                 <span className="font-medium text-ink-900">{entry.changed_by_name}</span>
                 {entry.comments && <span className="text-ink-600"> — {entry.comments}</span>}
               </p>

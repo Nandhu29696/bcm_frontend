@@ -3,7 +3,8 @@ import { useRef, useState } from 'react'
 
 import { toApiError } from '@/api/client'
 import { IconFile, IconPlus } from '@/components/icons'
-import { Alert, Button, Spinner } from '@/components/ui'
+import { pageOf } from '@/components/paging'
+import { Alert, Button, Pager, Spinner } from '@/components/ui'
 import { reviewApi } from '@/features/review/api'
 import { sectionApi } from '@/features/sections/api'
 import { CriticalResourcesEditor, NetworkRequirementsEditor } from '@/features/sections/BiaSections'
@@ -198,6 +199,7 @@ function formatSize(bytes: number): string {
 
 /** BU leads and coordinators from the overview; reachable contacts from the BIA. */
 function ProjectContacts({ versionId }: { versionId: number }) {
+  const [page, setPage] = useState(1)
   const overview = useQuery({
     queryKey: editorKeys.overview(versionId),
     queryFn: () => editorApi.overview(versionId),
@@ -250,7 +252,7 @@ function ProjectContacts({ versionId }: { versionId: number }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {pageOf(rows, page).map((r) => (
                 <tr key={r.key}>
                   <td className="whitespace-nowrap text-ink-600">{r.role}</td>
                   <td className="font-medium text-ink-900">{r.name}</td>
@@ -259,6 +261,7 @@ function ProjectContacts({ versionId }: { versionId: number }) {
               ))}
             </tbody>
           </table>
+          <Pager page={page} total={rows.length} onPage={setPage} label="Project contact pages" />
         </div>
       )}
     </section>

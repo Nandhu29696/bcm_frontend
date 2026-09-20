@@ -34,7 +34,7 @@ export function QuestionRenderer({ question, answer, disabled, onChange }: Rende
           inputMode="decimal"
           min={0}
           step="any"
-          className="max-w-xs"
+          className="w-36"
           aria-label={question.question_text}
           disabled={disabled}
           value={scalar(answer) ?? ''}
@@ -47,7 +47,7 @@ export function QuestionRenderer({ question, answer, disabled, onChange }: Rende
       return (
         <Input
           type="date"
-          className="max-w-xs"
+          className="w-44"
           aria-label={question.question_text}
           disabled={disabled}
           value={String(scalar(answer) ?? '')}
@@ -98,16 +98,17 @@ function SingleChoice({ question, answer, disabled, onChange }: RendererProps) {
   const hasDetail = question.detail_options.length > 0
   const name = `q-${question.question_id}`
 
-  // A short list is radio buttons; a long catalogue is a select. Both write the
-  // same shape, so the choice is purely about screen space.
-  const asSelect = question.options.length > 6
+  // Up to three options are pills beside the question; more is a select. Both
+  // write the same shape, so the choice is purely about screen space — four
+  // pills no longer fit on the question's line.
+  const asSelect = question.options.length > 3
 
   return (
     <div className="space-y-3">
       {asSelect ? (
         <Select
           aria-label={question.question_text}
-          className="max-w-md"
+          className="w-64"
           disabled={disabled}
           value={String(current ?? '')}
           onChange={(e) => onChange(e.target.value ? { value: e.target.value } : null, true)}
@@ -124,7 +125,7 @@ function SingleChoice({ question, answer, disabled, onChange }: RendererProps) {
           {question.options.map((o) => (
             <label
               key={o.code}
-              className={`inline-flex cursor-pointer items-center gap-2 rounded-control border px-3.5 py-2 text-sm font-medium transition-colors ${
+              className={`inline-flex cursor-pointer items-center gap-2 rounded-control border px-3 py-1.5 text-sm font-medium transition-colors focus-within:ring-4 focus-within:ring-brand-100 ${
                 current === o.code
                   ? 'border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-100'
                   : 'border-ink-200 bg-white text-ink-700 hover:border-ink-300 hover:bg-ink-50'
@@ -238,6 +239,7 @@ function SubformEditor({ question, answer, disabled, onChange }: RendererProps) 
 
   return (
     <div className="space-y-2">
+      {rows.length === 0 && disabled && <p className="text-sm text-ink-400">None recorded.</p>}
       {rows.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

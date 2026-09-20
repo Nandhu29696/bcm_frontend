@@ -65,7 +65,13 @@ export const plansApi = {
 
   async assignCoordinator(
     planVersionId: number,
-    payload: { employee: number; coordinator_type: string; additional_user_flag: boolean },
+    payload: {
+      employee: number
+      coordinator_type: string
+      additional_user_flag: boolean
+      /** Take the role over from whoever holds it. */
+      replace?: boolean
+    },
   ): Promise<Coordinator> {
     const { data } = await api.post<Coordinator>(
       `/plan-versions/${planVersionId}/coordinators/`,

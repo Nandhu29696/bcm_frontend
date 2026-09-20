@@ -28,12 +28,12 @@ async function openEditor(page: Page, code: string) {
 
 /**
  * A questionnaire section tab. Its accessible name is the section name followed
- * by the completion badge ("RTO 40%" or "RTO Done").
+ * by the completion badge ("RTO 1 left" or "RTO Done").
  */
 function sectionTab(page: Page, name: string) {
   return page
     .getByRole('tablist', { name: /sections/i })
-    .getByRole('tab', { name: new RegExp(`^${name} ([0-9]+%|Done)$`) })
+    .getByRole('tab', { name: new RegExp(`^${name} ([0-9]+%|[0-9]+ left|Done)$`) })
 }
 
 /** A part of the plan: Questionnaire, Recovery objective, BIA, RA, Plan. */

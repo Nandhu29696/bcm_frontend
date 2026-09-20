@@ -208,9 +208,15 @@ export const opsApi = {
   },
 
   // crisis events
-  async events(filters: { status?: string; event_type?: string; estate?: number }): Promise<CrisisEvent[]> {
-    const { data } = await api.get<Paginated<CrisisEvent>>('/crisis-events/', { params: { ...clean(filters), page_size: 500 } })
-    return data.results
+  async events(filters: {
+    status?: string
+    event_type?: string
+    estate?: number
+    page?: number
+    page_size?: number
+  }): Promise<Paginated<CrisisEvent>> {
+    const { data } = await api.get<Paginated<CrisisEvent>>('/crisis-events/', { params: clean(filters) })
+    return data
   },
   async costCodeEvents(costCodeId: number): Promise<CrisisEvent[]> {
     const { data } = await api.get<CrisisEvent[]>(`/cost-codes/${costCodeId}/crisis-events/`)

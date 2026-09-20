@@ -3,7 +3,8 @@ import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { toApiError } from '@/api/client'
-import { Alert, Button, EmptyState, Field, Input, Modal, PageHeader, Select, Spinner, StatusBadge, Textarea } from '@/components/ui'
+import { PAGE_SIZE } from '@/components/paging'
+import { Alert, Badge, Button, EmptyState, Field, FilterBar, FilterItem, Input, Modal, PageHeader, Pager, Select, StatusBadge, TableSkeleton, Textarea } from '@/components/ui'
 import { ROLE } from '@/features/auth/types'
 import { useHasRole } from '@/features/auth/useAuth'
 import { formatDateTime } from '@/features/plans/format'
@@ -18,8 +19,14 @@ export function CrisisPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const status = searchParams.get('status') ?? ''
   const eventType = searchParams.get('event_type') ?? ''
-  const filters = { status, event_type: eventType }
-  const events = useQuery({ queryKey: opsKeys.events(filters), queryFn: () => opsApi.events(filters) })
+  const page = Math.max(1, Number(searchParams.get('page')) || 1)
+  const filters = { status, event_type: eventType, page, page_size: PAGE_SIZE }
+  const events = useQuery({
+    queryKey: opsKeys.events(filters),
+    queryFn: () => opsApi.events(filters),
+    // Keep the previous page on screen while the next one loads.
+    placeholderData: (previous) => previous,
+  })
   const [declaring, setDeclaring] = useState(false)
   const canDeclare = useHasRole([ROLE.ADMIN, ROLE.COORDINATOR, ROLE.BU_LEAD, ROLE.TEST_MANAGER, ROLE.APPROVER])
 
@@ -27,84 +34,100 @@ export function CrisisPage() {
     const next = new URLSearchParams(searchParams)
     if (value) next.set(key, value)
     else next.delete(key)
+    // A filter change starts again at page 1.
+    if (key !== 'page') next.delete('page')
     setSearchParams(next, { replace: true })
   }
 
   return (
     <>
-      <PageHeader title="Crisis Management" eyebrow="Incidents, exercises and the CMSC call tree" subtitle={events.data ? `${events.data.length} event${events.data.length === 1 ? '' : 's'}` : undefined}>
+      <PageHeader title="Crisis Management" eyebrow="Incidents, exercises and the CMSC call tree" subtitle={events.data ? `${events.data.count} event${events.data.count === 1 ? '' : 's'}` : undefined}>
         {canDeclare && <Button onClick={() => setDeclaring(true)}>Declare an event</Button>}
       </PageHeader>
 
-      <div className="mb-4 flex flex-wrap justify-end gap-2">
-        <Select value={status} onChange={(e) => setParam('status', e.target.value)} aria-label="Filter by status" className="w-44">
-          <option value="">All statuses</option>
-          {['Planned', 'Initiated', 'In Progress', 'Closed', 'Cancelled'].map((s) => (
-            <option key={s}>{s}</option>
-          ))}
-        </Select>
-        <Select value={eventType} onChange={(e) => setParam('event_type', e.target.value)} aria-label="Filter by type" className="w-48">
-          <option value="">All types</option>
-          {EVENT_TYPES.map((t) => (
-            <option key={t}>{t}</option>
-          ))}
-        </Select>
-      </div>
+      <FilterBar
+        active={[status, eventType].filter(Boolean).length}
+        onClear={() => setSearchParams({}, { replace: true })}
+        count={events.data ? `${events.data.count} event${events.data.count === 1 ? '' : 's'}` : undefined}
+      >
+        <FilterItem className="w-44">
+          <Select value={status} onChange={(e) => setParam('status', e.target.value)} aria-label="Filter by status">
+            <option value="">All statuses</option>
+            {['Planned', 'Initiated', 'In Progress', 'Closed', 'Cancelled'].map((s) => (
+              <option key={s}>{s}</option>
+            ))}
+          </Select>
+        </FilterItem>
+        <FilterItem>
+          <Select value={eventType} onChange={(e) => setParam('event_type', e.target.value)} aria-label="Filter by type">
+            <option value="">All types</option>
+            {EVENT_TYPES.map((t) => (
+              <option key={t}>{t}</option>
+            ))}
+          </Select>
+        </FilterItem>
+      </FilterBar>
 
       {events.isPending ? (
-        <div className="py-16 text-center">
-          <Spinner label="Loading crisis events" />
-        </div>
+        <TableSkeleton cols={7} label="Loading crisis events" />
       ) : events.error ? (
         <Alert>{toApiError(events.error).detail}</Alert>
-      ) : events.data.length === 0 ? (
+      ) : events.data.count === 0 ? (
         <EmptyState title="No crisis events" description="Declaring an event records it against a cost code and can start the CMSC call tree." />
       ) : (
         <div className="overflow-hidden rounded-card border border-ink-200/80 bg-white shadow-card">
-          <table className="data-table">
+          <div className="overflow-x-auto">
+          <table className="data-table compact">
             <thead>
               <tr>
-                <th>When</th>
-                <th>Cost code</th>
-                <th>Type</th>
-                <th>CSD ticket</th>
+                <th className="whitespace-nowrap">When</th>
+                <th>Event</th>
+                <th className="whitespace-nowrap">CSD ticket</th>
                 <th>Status</th>
-                <th>Call tree</th>
-                <th>Declared by</th>
+                <th className="whitespace-nowrap">Call tree</th>
+                <th className="whitespace-nowrap">Declared by</th>
               </tr>
             </thead>
             <tbody>
-              {events.data.map((e) => (
+              {events.data.results.map((e) => (
                 <tr key={e.crisis_event_id}>
                   <td className="whitespace-nowrap">
                     {formatDate(e.event_date)}
-                    {e.event_time ? ` ${e.event_time.slice(0, 5)}` : ''}
+                    {e.event_time && <span className="block text-xs text-ink-500">{e.event_time.slice(0, 5)}</span>}
                   </td>
-                  <td>
-                    <Link to={`/crisis/${e.crisis_event_id}`} className="font-medium text-brand-700 hover:underline">
-                      {e.cost_code_label}
-                    </Link>
-                    <span className="block text-xs text-ink-500">{e.process_name || '—'} · {e.estate_name}</span>
+                  {/* One cell says what and where: the cost code, the type, the
+                      process and estate. The old layout spent a column on each
+                      and left the cost code wrapping at four lines. */}
+                  <td className="min-w-[16rem]">
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <Link to={`/crisis/${e.crisis_event_id}`} className="whitespace-nowrap font-medium text-brand-700 hover:underline">
+                        {e.cost_code_label}
+                      </Link>
+                      <span className="text-ink-700">{e.event_type}</span>
+                      {e.call_tree_run?.simulation_flag && <Badge className="bg-violet-50 text-violet-800">Simulation</Badge>}
+                    </span>
+                    <span className="mt-0.5 block truncate text-xs text-ink-500" title={`${e.process_name || '—'} · ${e.estate_name}`}>
+                      {e.process_name || '—'} · {e.estate_name}
+                    </span>
                   </td>
-                  <td>{e.event_type}</td>
-                  <td className="font-mono text-xs">{e.csd_ticket_number || '—'}</td>
-                  <td>
+                  <td className="whitespace-nowrap font-mono text-xs">{e.csd_ticket_number || '—'}</td>
+                  <td className="whitespace-nowrap">
                     <StatusBadge status={e.status} />
                   </td>
-                  <td>
+                  <td className="whitespace-nowrap">
                     {e.call_tree_run ? (
-                      <span className="text-sm">
+                      <span className="inline-flex items-center gap-2">
                         <StatusBadge status={e.call_tree_run.status} />
-                        <span className="ml-2 tabular-nums text-ink-500">
-                          {e.call_tree_run.reached}/{e.call_tree_run.members}
-                          {e.call_tree_run.simulation_flag ? ' · sim' : ''}
+                        <span className="tabular-nums">
+                          <span className="font-medium text-ink-900">{e.call_tree_run.reached}</span>
+                          <span className="text-ink-500"> / {e.call_tree_run.members}</span>
                         </span>
                       </span>
                     ) : (
-                      <span className="text-ink-400">—</span>
+                      <span className="text-ink-400">Not run</span>
                     )}
                   </td>
-                  <td className="text-ink-500">
+                  <td className="whitespace-nowrap text-ink-500">
                     {e.created_by_name || '—'}
                     <span className="block text-xs">{formatDateTime(e.created_at)}</span>
                   </td>
@@ -112,6 +135,8 @@ export function CrisisPage() {
               ))}
             </tbody>
           </table>
+          </div>
+          <Pager page={page} total={events.data.count} onPage={(n) => setParam('page', String(n))} label="Crisis event pages" />
         </div>
       )}
 

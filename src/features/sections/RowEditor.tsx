@@ -3,7 +3,8 @@ import { useState, type ReactNode } from 'react'
 
 import { toApiError } from '@/api/client'
 import { IconPlus } from '@/components/icons'
-import { Alert, Button, Field, Input, Modal, Select, Spinner, Textarea } from '@/components/ui'
+import { pageOf } from '@/components/paging'
+import { Alert, Button, Field, Input, Modal, Pager, Select, Spinner, Textarea } from '@/components/ui'
 
 import { employeesKey, fetchEmployees, sectionApi } from './api'
 
@@ -64,6 +65,7 @@ export function RowEditor<T extends Record<string, unknown>>({
   const key = client.key(versionId)
   const rows = useQuery({ queryKey: key, queryFn: () => client.list(versionId) })
   const [editing, setEditing] = useState<T | 'new' | null>(null)
+  const [page, setPage] = useState(1)
 
   const remove = useMutation({
     mutationFn: (id: number) => client.remove(versionId, id),
@@ -110,7 +112,7 @@ export function RowEditor<T extends Record<string, unknown>>({
               </tr>
             </thead>
             <tbody>
-              {rows.data.map((row) => (
+              {pageOf(rows.data, page).map((row) => (
                 <tr key={String(row[idKey])} className="align-top">
                   {columns.map((c) => (
                     <td key={c.label}>{c.render(row)}</td>
@@ -134,6 +136,7 @@ export function RowEditor<T extends Record<string, unknown>>({
               ))}
             </tbody>
           </table>
+          <Pager page={page} total={rows.data.length} onPage={setPage} label={`${title} pages`} />
         </div>
       )}
 

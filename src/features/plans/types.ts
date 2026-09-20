@@ -44,6 +44,9 @@ export interface PlanVersion {
   plan_id: number
   cost_code_id: number
   cost_code: string
+  process_name: string
+  estate_name: string
+  bu_lead_name: string
   version_number: number
   status: BcpStatus
   plan_mode: string

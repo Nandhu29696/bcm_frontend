@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
 
 import { toApiError } from '@/api/client'
 import { Alert, Badge, Spinner, StatusBadge } from '@/components/ui'
 import { formatDateTime } from '@/features/plans/format'
 
-import { CHANNEL_LABEL, opsApi, opsKeys, type Attempt, type RunSummary } from './api'
+import { CHANNEL_LABEL, opsApi, opsKeys, type Attempt, type RunMember, type RunSummary } from './api'
 
 /**
  * A call tree run, live. Polls every three seconds while the run is RUNNING
@@ -97,11 +98,7 @@ export function CallTreeMonitor({ run }: { run: RunSummary }) {
                 </td>
                 <td>{member.stage}</td>
                 <td>
-                  <ol className="flex flex-wrap gap-1" aria-label={`Attempts for ${member.member_name}`}>
-                    {member.attempts.map((attempt) => (
-                      <AttemptChip key={attempt.call_attempt_id} attempt={attempt} />
-                    ))}
-                  </ol>
+                  <AttemptList member={member} />
                 </td>
                 <td>
                   {member.reached_flag ? (
@@ -118,6 +115,37 @@ export function CallTreeMonitor({ run }: { run: RunSummary }) {
         </table>
       </div>
     </section>
+  )
+}
+
+/**
+ * The attempts made on one member. A run can dial someone seven times across
+ * three channels; showing every chip swamps the row, so past the first three
+ * the rest sit behind "+4 more" until asked for.
+ */
+function AttemptList({ member }: { member: RunMember }) {
+  const [expanded, setExpanded] = useState(false)
+  const attempts = member.attempts
+  const shown = expanded || attempts.length <= 3 ? attempts : attempts.slice(-3)
+  const hidden = attempts.length - shown.length
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {hidden > 0 && (
+        <button type="button" onClick={() => setExpanded(true)} className="rounded-full border border-ink-200 px-2 py-0.5 text-[11px] font-medium text-ink-600 hover:bg-ink-50">
+          +{hidden} earlier
+        </button>
+      )}
+      <ol className="flex flex-wrap items-center gap-1" aria-label={`Attempts for ${member.member_name}`}>
+        {shown.map((attempt) => (
+          <AttemptChip key={attempt.call_attempt_id} attempt={attempt} />
+        ))}
+      </ol>
+      {expanded && attempts.length > 3 && (
+        <button type="button" onClick={() => setExpanded(false)} className="px-1 text-[11px] text-ink-500 hover:underline">
+          less
+        </button>
+      )}
+    </div>
   )
 }
 

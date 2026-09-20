@@ -1,3 +1,4 @@
+import { PAGE_SIZE } from './paging'
 import {
   useEffect,
   type ButtonHTMLAttributes,
@@ -206,7 +207,8 @@ export function PageHeader({
         <h1 className="truncate text-2xl font-semibold tracking-tight text-ink-950">{title}</h1>
         {subtitle && <div className="mt-1.5 text-sm text-ink-600">{subtitle}</div>}
       </div>
-      {children && <div className="flex shrink-0 flex-wrap items-center gap-2">{children}</div>}
+      {/* Actions stay at the right edge even when the header wraps onto two lines. */}
+      {children && <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">{children}</div>}
     </div>
   )
 }
@@ -329,6 +331,113 @@ export function Badge({ children, className = '' }: { children: ReactNode; class
     >
       {children}
     </span>
+  )
+}
+
+// --------------------------------------------------------------------------- //
+// Loading and filtering
+// --------------------------------------------------------------------------- //
+
+/**
+ * A table's shape while its rows load, so the page does not jump from a
+ * centred spinner to a full-width table. `rows` × `cols` grey bars.
+ */
+export function TableSkeleton({ rows = 5, cols = 5, label = 'Loading' }: { rows?: number; cols?: number; label?: string }) {
+  return (
+    <div role="status" aria-label={label} className="overflow-hidden rounded-card border border-ink-200/80 bg-white shadow-card">
+      <div className="border-b border-ink-100 bg-ink-50/60 px-4 py-3">
+        <div className="h-3 w-40 animate-pulse rounded bg-ink-200/70" />
+      </div>
+      <ul className="divide-y divide-ink-100">
+        {Array.from({ length: rows }, (_, r) => (
+          <li key={r} className="grid gap-4 px-4 py-3.5" style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}>
+            {Array.from({ length: cols }, (_, c) => (
+              <span key={c} className="h-3.5 animate-pulse rounded bg-ink-100" style={{ width: `${55 + ((r * 7 + c * 13) % 40)}%` }} />
+            ))}
+          </li>
+        ))}
+      </ul>
+      <span className="sr-only">{label}</span>
+    </div>
+  )
+}
+
+/**
+ * The one filter bar: controls in a row inside a card, an optional result
+ * count on the right, and Clear when anything is set. Wrap each control in
+ * `<FilterBar.Item>` with a width so a full-width control stays in its cell.
+ */
+export function FilterBar({
+  children,
+  count,
+  active = 0,
+  onClear,
+  className = '',
+}: {
+  children: ReactNode
+  count?: ReactNode
+  active?: number
+  onClear?: () => void
+  className?: string
+}) {
+  return (
+    <div role="search" className={`mb-4 flex flex-wrap items-center gap-2 rounded-card border border-ink-200/80 bg-white px-3 py-2.5 shadow-card ${className}`}>
+      {children}
+      {active > 0 && onClear && (
+        <Button type="button" size="sm" variant="ghost" onClick={onClear}>
+          Clear filters
+        </Button>
+      )}
+      {count !== undefined && <span className="ml-auto text-xs text-ink-500 tabular-nums">{count}</span>}
+    </div>
+  )
+}
+
+export function FilterItem({ children, className = 'w-48' }: { children: ReactNode; className?: string }) {
+  return <div className={className}>{children}</div>
+}
+
+// --------------------------------------------------------------------------- //
+// Pager
+// --------------------------------------------------------------------------- //
+
+/**
+ * "1–5 of 17 · Previous 1 / 4 Next". Renders nothing when everything fits on
+ * one page. `page` is 1-based; the caller owns it (usually in the URL).
+ */
+export function Pager({
+  page,
+  pageSize = PAGE_SIZE,
+  total,
+  onPage,
+  label = 'Pages',
+}: {
+  page: number
+  pageSize?: number
+  total: number
+  onPage: (page: number) => void
+  label?: string
+}) {
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const current = Math.min(Math.max(1, page), pageCount)
+  if (total <= pageSize) return null
+  return (
+    <nav aria-label={label} className="flex flex-wrap items-center justify-between gap-2 border-t border-ink-100 px-4 py-2.5 text-xs text-ink-500">
+      <span className="tabular-nums">
+        {(current - 1) * pageSize + 1}–{Math.min(current * pageSize, total)} of {total}
+      </span>
+      <span className="flex items-center gap-1">
+        <Button variant="secondary" size="sm" disabled={current <= 1} onClick={() => onPage(current - 1)} aria-label="Previous page">
+          Previous
+        </Button>
+        <span className="px-2 tabular-nums">
+          {current} / {pageCount}
+        </span>
+        <Button variant="secondary" size="sm" disabled={current >= pageCount} onClick={() => onPage(current + 1)} aria-label="Next page">
+          Next
+        </Button>
+      </span>
+    </nav>
   )
 }
 

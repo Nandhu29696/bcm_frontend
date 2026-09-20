@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 
 import { api, toApiError } from '@/api/client'
-import { Alert, Button, EmptyState, Input, PageHeader, Select, Spinner, StatusBadge } from '@/components/ui'
+import { pageOf } from '@/components/paging'
+import { Alert, Button, EmptyState, Input, PageHeader, Pager, Select, StatusBadge, TableSkeleton } from '@/components/ui'
 import { useToast } from '@/components/useToast'
 import { formatDateTime } from '@/features/plans/format'
 
@@ -29,8 +30,9 @@ const logApi = {
 /** The email delivery log with a Resend button: what the runbook did from a shell (PENDING #28). */
 export function NotificationLogPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const status = searchParams.get('status') ?? 'FAILED'
+  const status = searchParams.get('status') ?? ''
   const search = searchParams.get('search') ?? ''
+  const page = Math.max(1, Number(searchParams.get('page')) || 1)
   const queryClient = useQueryClient()
   const toast = useToast()
   const log = useQuery({ queryKey: ['admin', 'notifications', status, search], queryFn: () => logApi.list(status, search) })
@@ -47,6 +49,7 @@ export function NotificationLogPage() {
     const next = new URLSearchParams(searchParams)
     if (value) next.set(key, value)
     else next.delete(key)
+    if (key !== 'page') next.delete('page')
     setSearchParams(next, { replace: true })
   }
   const counts = log.data?.counts ?? {}
@@ -64,11 +67,11 @@ export function NotificationLogPage() {
           <label className="lg:w-44">
             <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Delivery status</span>
             <Select value={status} onChange={(e) => setParam('status', e.target.value)} aria-label="Filter by status">
+              <option value="">All statuses</option>
               <option value="FAILED">Failed</option>
               <option value="PENDING">Pending</option>
               <option value="SENT">Sent</option>
               <option value="SUPPRESSED">Suppressed</option>
-              <option value="">All statuses</option>
             </Select>
           </label>
           <label className="min-w-0 flex-1">
@@ -91,9 +94,7 @@ export function NotificationLogPage() {
       </div>
 
       {log.isPending ? (
-        <div className="py-16 text-center">
-          <Spinner label="Loading delivery log" />
-        </div>
+        <TableSkeleton cols={6} label="Loading delivery log" />
       ) : log.error ? (
         <Alert>{toApiError(log.error).detail}</Alert>
       ) : log.data.results.length === 0 ? (
@@ -112,7 +113,7 @@ export function NotificationLogPage() {
               </tr>
             </thead>
             <tbody>
-              {log.data.results.map((row) => (
+              {pageOf(log.data.results, page).map((row) => (
                 <tr key={row.notification_log_id}>
                   <td className="whitespace-nowrap text-xs text-ink-500">{formatDateTime(row.created_at)}</td>
                   <td>
@@ -143,6 +144,7 @@ export function NotificationLogPage() {
               ))}
             </tbody>
           </table>
+          <Pager page={page} total={log.data.results.length} onPage={(n) => setParam('page', String(n))} label="Delivery log pages" />
         </div>
       )}
     </>

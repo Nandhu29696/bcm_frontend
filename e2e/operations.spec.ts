@@ -21,12 +21,23 @@ async function pickCostCode(dialog: Locator, code: string) {
   await select.selectOption((await option.getAttribute('value')) as string)
 }
 
-function scheduledEntry(page: Page, name: RegExp) {
+/**
+ * The just-scheduled test in the side list. Earlier runs leave completed tests
+ * on the same days, and the list is paged five at a time, so narrow it to the
+ * day it was scheduled on (a click on the calendar cell) and to Scheduled.
+ */
+async function scheduledEntry(page: Page, name: RegExp, day: number) {
+  await page.getByLabel('Filter by status').selectOption('Scheduled')
+  // Click the cell's corner: its centre may be one of the test links inside it.
+  await page
+    .getByRole('grid', { name: 'Calendar' })
+    .getByRole('gridcell', { name: new RegExp(`^${day}:`) })
+    .click({ position: { x: 6, y: 6 } })
+  await expect(page.getByRole('region', { name: /tests on/i })).toBeVisible()
   return page
-    .getByRole('region', { name: /tests this month/i })
+    .getByRole('region', { name: /tests on/i })
     .getByRole('listitem')
     .filter({ hasText: name })
-    .filter({ hasText: 'Scheduled' })
     .first()
     .getByRole('link')
 }
@@ -58,6 +69,9 @@ test.describe('crisis management', () => {
     await expect(run.getByRole('row').filter({ hasText: 'Kiran Rao' })).toContainText('Reached · Teams')
     const sunil = run.getByRole('row').filter({ hasText: 'Sunil Verma' })
     await expect(sunil).toContainText('Not reached')
+    // Only the last three attempts show until asked; all seven are there.
+    await expect(sunil.getByRole('listitem')).toHaveCount(3)
+    await sunil.getByRole('button', { name: /earlier/i }).click()
     await expect(sunil.getByRole('listitem')).toHaveCount(7)
     await expect(sunil).toContainText('Email 3: Escalation Email Sent')
     // Response by level.
@@ -79,7 +93,8 @@ test.describe('crisis management', () => {
     await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Crisis Management' }).click()
     const row = page.getByRole('row').filter({ hasText: 'INC-2026-0914' }).first()
     await expect(row).toContainText('Closed')
-    await expect(row).toContainText('3/4 · sim')
+    await expect(row).toContainText('3 / 4')
+    await expect(row).toContainText('Simulation')
   })
 
   test('the roster can be edited from the cost code page', async ({ page }) => {
@@ -117,7 +132,7 @@ test.describe('tests', () => {
   test('schedule from the calendar, record an outcome with a report', async ({ page }) => {
     await signIn(page, COORDINATOR)
     await page.getByRole('link', { name: 'Tests' }).click()
-    await expect(page.getByRole('heading', { name: 'Tests' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Tests', exact: true })).toBeVisible()
 
     // Schedule for the 15th of the month shown, so it lands on this calendar.
     const month = new URL(page.url()).searchParams.get('month') ?? new Date().toISOString().slice(0, 7)
@@ -133,7 +148,7 @@ test.describe('tests', () => {
     await expect(dialog).toHaveCount(0)
 
     // Earlier runs leave completed tests on the same day; open the one still Scheduled.
-    const listed = scheduledEntry(page, /Tabletop Exercise · 65-DEMO07/)
+    const listed = await scheduledEntry(page, /Tabletop Exercise · 65-DEMO07/, 15)
     await expect(listed).toBeVisible()
     await expect(page.getByRole('grid', { name: 'Calendar' }).getByRole('link', { name: COST_CODE })).not.toHaveCount(0)
     await listed.click()
@@ -165,7 +180,7 @@ test.describe('tests', () => {
     await dialog.getByLabel('Date').fill(`${month}-20`)
     await dialog.getByRole('button', { name: /^schedule$/i }).click()
     await expect(dialog).toHaveCount(0)
-    await scheduledEntry(page, /Call Tree Test · 65-DEMO07/).click()
+    await (await scheduledEntry(page, /Call Tree Test · 65-DEMO07/, 20)).click()
 
     await page.getByRole('button', { name: /run call tree/i }).click()
     await page.getByRole('dialog', { name: /run the call tree/i }).getByRole('button', { name: /run simulation/i }).click()

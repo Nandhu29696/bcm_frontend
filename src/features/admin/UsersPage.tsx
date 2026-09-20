@@ -4,7 +4,8 @@ import { useSearchParams } from 'react-router-dom'
 
 import { toApiError } from '@/api/client'
 import { useToast } from '@/components/useToast'
-import { Alert, Badge, Button, Card, EmptyState, Field, Input, Modal, PageHeader, Select, Spinner, StatusBadge } from '@/components/ui'
+import { PAGE_SIZE } from '@/components/paging'
+import { Alert, Badge, Button, EmptyState, Field, Input, Modal, PageHeader, Pager, Select, StatusBadge, TableSkeleton } from '@/components/ui'
 import type { EmployeeSummary, UserStatus } from '@/features/auth/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { estateApi, estateKeys } from '@/features/estates/api'
@@ -30,6 +31,7 @@ export function UsersPage() {
   const users = useQuery({ queryKey: adminKeys.users(filters), queryFn: () => adminApi.users(filters) })
   const [editing, setEditing] = useState<AdminUser | null>(null)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [importing, setImporting] = useState(false)
   const queryClient = useQueryClient()
   const toast = useToast()
   const [downloadingTemplate, setDownloadingTemplate] = useState(false)
@@ -38,6 +40,7 @@ export function UsersPage() {
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ['admin', 'employees'] })
       setUploadFile(null)
+      setImporting(false)
       if (result.errors.length) {
         toast.error(`${result.created} created, ${result.updated} updated, ${result.errors.length} row${result.errors.length === 1 ? '' : 's'} skipped`)
       } else {
@@ -81,7 +84,11 @@ export function UsersPage() {
         title="User administration"
         eyebrow="Accounts, roles, estate scopes and the second factor"
         subtitle={users.data ? `${users.data.count} account${users.data.count === 1 ? '' : 's'}${pending ? ` · ${pending} awaiting activation on this page` : ''}` : undefined}
-      />
+      >
+        <Button variant="secondary" onClick={() => setImporting(true)}>
+          Import employees
+        </Button>
+      </PageHeader>
 
       <div className="mb-5 rounded-card border border-ink-200/80 bg-white p-3 shadow-card">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
@@ -125,42 +132,17 @@ export function UsersPage() {
             </Button>
           )}
         </div>
+        {(pending > 0 || activeFilters > 0) && (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-ink-100 pt-3 text-xs text-ink-500">
-          <span className="font-medium text-ink-700">Showing {users.data?.count ?? '...'} accounts</span>
           {pending > 0 && <Badge className="bg-amber-50 text-amber-800">{pending} awaiting activation</Badge>}
-          {activeFilters > 0 && <span>{activeFilters} filter{activeFilters === 1 ? '' : 's'} applied</span>}
+          {activeFilters > 0 && <span>{activeFilters} filter{activeFilters === 1 ? '' : 's'} applied · {users.data?.count ?? '…'} match</span>}
         </div>
+        )}
       </div>
 
-      <Card className="mb-5 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-sm font-semibold text-ink-900">Bulk employee upload</h2>
-          <p className="mt-1 text-xs text-ink-500">Upload the employee Excel export. Existing employee numbers are updated; new estate names are created automatically.</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button type="button" size="sm" variant="ghost" disabled={downloadingTemplate} onClick={() => void downloadTemplate()}>
-            {downloadingTemplate ? 'Preparing' : 'Download template'}
-          </Button>
-          <label className="inline-flex h-9.5 cursor-pointer items-center justify-center rounded-control border border-ink-200 bg-white px-4 text-sm font-medium text-ink-800 shadow-card transition-colors hover:border-ink-300 hover:bg-ink-50">
-            <span>{uploadFile ? uploadFile.name : 'Choose Excel file'}</span>
-            <input
-              type="file"
-              accept=".xlsx,.xlsm"
-              className="sr-only"
-              onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
-              aria-label="Choose employee Excel file"
-            />
-          </label>
-          <Button type="button" size="sm" disabled={!uploadFile || upload.isPending} onClick={() => upload.mutate()}>
-            {upload.isPending ? 'Uploading' : 'Upload'}
-          </Button>
-        </div>
-      </Card>
 
       {users.isPending ? (
-        <div className="py-16 text-center">
-          <Spinner label="Loading users" />
-        </div>
+        <TableSkeleton cols={7} label="Loading users" />
       ) : users.error ? (
         <Alert>{toApiError(users.error).detail}</Alert>
       ) : users.data.results.length === 0 ? (
@@ -176,7 +158,7 @@ export function UsersPage() {
                 <th>MFA</th>
                 <th>Roles</th>
                 <th>Employee</th>
-                <th>Last sign-in</th>
+                <th className="whitespace-nowrap">Last sign-in</th>
                 <th className="w-20 text-right">Action</th>
               </tr>
             </thead>
@@ -193,8 +175,27 @@ export function UsersPage() {
                   </td>
                   <td className="capitalize">{u.auth_provider === 'local' ? 'Password' : u.auth_provider}</td>
                   <td>{u.mfa_enabled ? <Badge className="bg-emerald-50 text-emerald-800">On</Badge> : <Badge>Off</Badge>}</td>
-                  <td className="text-xs">{u.role_codes.map((c) => roleLabel(c)).join(', ') || <span className="text-amber-700">none</span>}</td>
-                  <td className="text-xs">{u.employee ? `${u.employee.full_name} · ${u.employee.employee_number}` : <span className="text-ink-400">not linked</span>}</td>
+                  <td>
+                    {u.role_codes.length === 0 ? (
+                      <Badge className="bg-amber-50 text-amber-800">No role</Badge>
+                    ) : (
+                      <span className="flex flex-wrap gap-1">
+                        {u.role_codes.map((c) => (
+                          <Badge key={c}>{roleLabel(c)}</Badge>
+                        ))}
+                      </span>
+                    )}
+                  </td>
+                  <td className="text-xs">
+                    {u.employee ? (
+                      <>
+                        <span className="text-ink-900">{u.employee.full_name}</span>
+                        <span className="block text-ink-500">{u.employee.employee_number}</span>
+                      </>
+                    ) : (
+                      <span className="text-ink-400">Not linked</span>
+                    )}
+                  </td>
                   <td className="whitespace-nowrap text-xs text-ink-500">{formatDateTime(u.last_login)}</td>
                   <td>
                     <div className="flex justify-end">
@@ -207,18 +208,39 @@ export function UsersPage() {
               ))}
             </tbody>
           </table>
-          {(users.data.next || users.data.previous) && (
-            <div className="flex items-center justify-between border-t border-ink-100 px-4 py-2 text-sm text-ink-500">
-              <Button size="sm" variant="ghost" disabled={!users.data.previous} onClick={() => setParam('page', String(filters.page - 1))}>
-                Previous
-              </Button>
-              <span>Page {filters.page}</span>
-              <Button size="sm" variant="ghost" disabled={!users.data.next} onClick={() => setParam('page', String(filters.page + 1))}>
-                Next
-              </Button>
-            </div>
-          )}
+          <Pager page={filters.page} pageSize={PAGE_SIZE} total={users.data.count} onPage={(n) => setParam('page', String(n))} label="Account pages" />
         </div>
+      )}
+
+      {importing && (
+        <Modal title="Import employees" onClose={() => setImporting(false)}>
+          <p className="text-sm text-ink-600">
+            Upload the employee Excel export. Existing employee numbers are updated; new estate names are created automatically.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Button type="button" size="sm" variant="ghost" disabled={downloadingTemplate} onClick={() => void downloadTemplate()}>
+              {downloadingTemplate ? 'Preparing' : 'Download template'}
+            </Button>
+            <label className="inline-flex h-9.5 cursor-pointer items-center justify-center rounded-control border border-ink-200 bg-white px-4 text-sm font-medium text-ink-800 shadow-card transition-colors hover:border-ink-300 hover:bg-ink-50">
+              <span>{uploadFile ? uploadFile.name : 'Choose Excel file'}</span>
+              <input
+                type="file"
+                accept=".xlsx,.xlsm"
+                className="sr-only"
+                onChange={(event) => setUploadFile(event.target.files?.[0] ?? null)}
+                aria-label="Choose employee Excel file"
+              />
+            </label>
+          </div>
+          <div className="mt-5 flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setImporting(false)}>
+              Cancel
+            </Button>
+            <Button type="button" disabled={!uploadFile || upload.isPending} onClick={() => upload.mutate()}>
+              {upload.isPending ? 'Uploading' : 'Upload'}
+            </Button>
+          </div>
+        </Modal>
       )}
 
       {editing && <EditUserModal user={editing} onClose={() => setEditing(null)} />}
@@ -228,7 +250,7 @@ export function UsersPage() {
 
 function roleLabel(code: string): string {
   const words = code.replace(/^BCM_/, '').toLowerCase().split('_')
-  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+  return words.map((w) => (w === 'bu' ? 'BU' : w.charAt(0).toUpperCase() + w.slice(1))).join(' ')
 }
 
 function EditUserModal({ user, onClose }: { user: AdminUser; onClose: () => void }) {

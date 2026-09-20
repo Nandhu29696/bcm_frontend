@@ -143,6 +143,46 @@ test.describe('cost code actions', () => {
     await expect(current).not.toContainText('Meera Analyst')
   })
 
+  test('a role already held asks before it is handed over', async ({ page }) => {
+    await signIn(page, COORDINATOR)
+    await openCostCode(page, APPROVED_COST_CODE)
+    await page.getByRole('link', { name: APPROVED_COST_CODE, exact: true }).click()
+    const current = page.getByRole('region', { name: /current version/i })
+    await expect(current).toContainText('Arun Coordinator')
+
+    // Arun is Primary. Choosing Primary for Meera asks, and "Keep current" backs out.
+    await page.getByRole('button', { name: /assign coordinator/i }).click()
+    const dialog = page.getByRole('dialog', { name: /assign coordinator/i })
+    await dialog.getByRole('searchbox', { name: /find a colleague/i }).fill('Meera')
+    await dialog.getByRole('option', { name: /Meera Analyst/ }).click()
+    await combobox(dialog, 'Role on this plan').selectOption('Primary')
+    await dialog.getByRole('button', { name: /assign and notify/i }).click()
+    const ask = dialog.getByRole('alertdialog', { name: /replace the current holder/i })
+    await expect(ask).toContainText(/Arun Coordinator/)
+    await ask.getByRole('button', { name: /keep current/i }).click()
+    await expect(ask).toHaveCount(0)
+    await expect(dialog).toBeVisible()
+
+    // Replacing hands the role over: one Primary, and it is Meera.
+    await dialog.getByRole('button', { name: /assign and notify/i }).click()
+    await ask.getByRole('button', { name: /^replace$/i }).click()
+    await expect(dialog).toHaveCount(0)
+    await expect(current).toContainText('Meera Analyst (Primary)')
+    await expect(current).not.toContainText('Arun Coordinator (Primary)')
+
+    // Put Arun back the same way, so the run is repeatable.
+    await page.getByRole('button', { name: /assign coordinator/i }).click()
+    const again = page.getByRole('dialog', { name: /assign coordinator/i })
+    await again.getByRole('searchbox', { name: /find a colleague/i }).fill('Arun')
+    await again.getByRole('option', { name: /Arun Coordinator/ }).click()
+    await combobox(again, 'Role on this plan').selectOption('Primary')
+    await again.getByRole('button', { name: /assign and notify/i }).click()
+    await again.getByRole('alertdialog').getByRole('button', { name: /^replace$/i }).click()
+    await expect(again).toHaveCount(0)
+    await expect(current).toContainText('Arun Coordinator (Primary)')
+    await expect(current).not.toContainText('Meera Analyst')
+  })
+
   test('copy-on-write creates an editable version and keeps the original', async ({ page }) => {
     await signIn(page, COORDINATOR)
     await openCostCode(page, APPROVED_COST_CODE)

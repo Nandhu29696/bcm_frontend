@@ -99,7 +99,8 @@ export function EditCostCodeModal({
           <Field label="Cost code" error={fieldError('cost_code')}>
             <Input
               value={form.cost_code}
-              onChange={(e) => set('cost_code', e.target.value)}
+              readOnly
+              className="bg-ink-50 text-ink-500"
               required
             />
           </Field>

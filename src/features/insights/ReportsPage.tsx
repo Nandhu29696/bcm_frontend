@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import { toApiError } from '@/api/client'
 import { useToast } from '@/components/useToast'
-import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, StatusBadge } from '@/components/ui'
+import { pageOf } from '@/components/paging'
+import { Alert, Button, EmptyState, Field, PageHeader, Pager, Select, StatusBadge, TableSkeleton } from '@/components/ui'
 import { estateApi, estateKeys } from '@/features/estates/api'
 import { formatDateTime } from '@/features/plans/format'
 import { reviewApi } from '@/features/review/api'
@@ -26,6 +28,14 @@ export function ReportsPage() {
     refetchInterval: (query) => (query.state.data?.some((r) => r.status === 'PENDING') ? 3000 : false),
   })
   const [form, setForm] = useState({ report_type: 'ESTATE_DETAIL', report_format: 'xlsx', schedule: 'ONCE', estate_id: '' })
+  const [searchParams, setSearchParams] = useSearchParams()
+  const page = Math.max(1, Number(searchParams.get('page')) || 1)
+  function setPage(n: number) {
+    const next = new URLSearchParams(searchParams)
+    if (n > 1) next.set('page', String(n))
+    else next.delete('page')
+    setSearchParams(next, { replace: true })
+  }
 
   function refresh() {
     void queryClient.invalidateQueries({ queryKey: insightsKeys.reportRequests })
@@ -63,17 +73,20 @@ export function ReportsPage() {
     <>
       <PageHeader title="Reports" eyebrow="Exports and schedules" subtitle="Reports are built in your data scope and emailed to you with a download link." />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-        <section aria-label="Request a report" className="h-fit rounded-card border border-ink-200/80 bg-white p-5 shadow-card">
-          <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Request a report</h2>
+      {/* The request form is one row across the top; the report list gets the
+          full width beneath it, where its five columns have room. */}
+      <div className="space-y-6">
+        <section aria-label="Request a report" className="rounded-card border border-ink-200/80 bg-white p-4 shadow-card">
+          <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Request a report</h2>
           <form
-            className="space-y-4"
+            className="space-y-3"
             onSubmit={(e) => {
               e.preventDefault()
               request.mutate()
             }}
           >
             {failure && <Alert>{failure.detail}</Alert>}
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)_auto] xl:items-end">
             <Field label="Report">
               <Select
                 value={form.report_type}
@@ -90,7 +103,6 @@ export function ReportsPage() {
                 ))}
               </Select>
             </Field>
-            <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Format">
                 <Select value={form.report_format} onChange={(e) => setForm({ ...form, report_format: e.target.value })} aria-label="Format">
                   {formats.map((f) => (
@@ -109,8 +121,7 @@ export function ReportsPage() {
                   ))}
                 </Select>
               </Field>
-            </div>
-            <Field label="Estate" hint="Leave empty for every estate in your scope.">
+            <Field label="Estate">
               <Select value={form.estate_id} onChange={(e) => setForm({ ...form, estate_id: e.target.value })} aria-label="Estate">
                 <option value="">All estates</option>
                 {estates.data?.map((estate) => (
@@ -120,7 +131,7 @@ export function ReportsPage() {
                 ))}
               </Select>
             </Field>
-            <div className="flex flex-wrap justify-end gap-2">
+            <div className="flex flex-wrap items-end justify-end gap-2">
               {form.report_type === 'ESTATE_DETAIL' && (
                 <Button type="button" variant="secondary" onClick={() => inline.mutate(form.report_format)} disabled={inline.isPending}>
                   {inline.isPending ? 'Building' : 'Download now'}
@@ -130,15 +141,23 @@ export function ReportsPage() {
                 {request.isPending ? 'Requesting' : form.schedule === 'ONCE' ? 'Request report' : 'Schedule report'}
               </Button>
             </div>
+            </div>
+            <p className="text-xs text-ink-500">
+              Leave the estate empty for every estate in your scope.
+              {form.report_type === 'ESTATE_DETAIL' && <> <strong className="font-medium text-ink-700">Download now</strong> builds the file in your browser straight away;</>}{' '}
+              <strong className="font-medium text-ink-700">{form.schedule === 'ONCE' ? 'Request report' : 'Schedule report'}</strong>{' '}
+              {form.schedule === 'ONCE' ? 'builds it in the background and emails you a download link.' : `runs it ${form.schedule.toLowerCase()} and emails you a link each time.`}
+            </p>
           </form>
         </section>
 
         <section aria-label="My reports" className="min-w-0">
-          <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">My reports</h2>
+          <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">
+            My reports
+            {requests.data && <span className="ml-2 rounded-full bg-ink-100 px-2 py-0.5 tabular-nums text-ink-600">{requests.data.length}</span>}
+          </h2>
           {requests.isPending ? (
-            <div className="py-10 text-center">
-              <Spinner label="Loading reports" />
-            </div>
+            <TableSkeleton cols={5} label="Loading reports" />
           ) : requests.error ? (
             <Alert>{toApiError(requests.error).detail}</Alert>
           ) : requests.data.length === 0 ? (
@@ -152,11 +171,11 @@ export function ReportsPage() {
                     <th>Schedule</th>
                     <th>Status</th>
                     <th>Last run</th>
-                    <th />
+                    <th className="text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {requests.data.map((r) => (
+                  {pageOf(requests.data, page).map((r) => (
                     <tr key={r.report_request_id}>
                       <td>
                         <span className="font-medium text-ink-900">{r.report_type_label}</span>
@@ -202,6 +221,7 @@ export function ReportsPage() {
                   ))}
                 </tbody>
               </table>
+              <Pager page={page} total={requests.data.length} onPage={setPage} label="Report pages" />
             </div>
           )}
         </section>
