@@ -51,7 +51,7 @@ export function LoginPage() {
         setOtpEmail(result.email)
         return
       }
-      await completeSignIn(result.access, result.refresh)
+      await completeSignIn()
       navigate(redirectTo, { replace: true })
     },
     onError: (error) => setFormError(toApiError(error).detail),
@@ -61,8 +61,8 @@ export function LoginPage() {
     return (
       <OtpForm
         email={otpEmail}
-        onVerified={async (tokens) => {
-          await completeSignIn(tokens.access, tokens.refresh)
+        onVerified={async () => {
+          await completeSignIn()
           navigate(redirectTo, { replace: true })
         }}
         onCancel={() => setOtpEmail(null)}

@@ -28,14 +28,13 @@ export interface CurrentUser {
   avatar_data_url: string
 }
 
-export interface TokenPair {
-  access: string
-  refresh: string
-}
-
-/** Login either completes, or asks for the second factor. */
+/**
+ * Login either completes, or asks for the second factor. There are no tokens
+ * here to carry — they arrive as HttpOnly cookies on the same response
+ * (BUG-21) and are never visible to JS.
+ */
 export type LoginResult =
-  | ({ otp_required: false } & TokenPair)
+  | { otp_required: false }
   | { otp_required: true; email: string; expires_in: number }
 
 export interface SsoProvider {

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 
 import { Button, StatusBadge } from '@/components/ui'
 import { ReviewActions } from '@/features/review/ReviewActions'
@@ -32,12 +32,13 @@ export function VersionList({
 }) {
   const current = versions.find((v) => v.is_current)
   const previous = versions.filter((v) => !v.is_current)
-  const [previousPage, setPreviousPage] = useState(1)
+  const [rawPreviousPage, setPreviousPage] = useState(1)
   const previousPageCount = Math.ceil(previous.length / PREVIOUS_PAGE_SIZE)
-
-  useEffect(() => {
-    setPreviousPage((page) => Math.min(page, Math.max(previousPageCount, 1)))
-  }, [previousPageCount])
+  // Clamp during render rather than writing the clamp back into state via an
+  // effect: the list can shrink (a version removed, a filter change) between
+  // renders, and the old page number would otherwise flash before the effect
+  // catches up.
+  const previousPage = Math.min(rawPreviousPage, Math.max(previousPageCount, 1))
 
   const visiblePrevious = previous.slice(
     (previousPage - 1) * PREVIOUS_PAGE_SIZE,

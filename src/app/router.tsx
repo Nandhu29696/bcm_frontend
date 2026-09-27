@@ -89,7 +89,14 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
-      { path: 'system/health', element: <HealthPage /> },
+      {
+        path: 'system/health',
+        element: (
+          <ProtectedRoute roles={[ROLE.ADMIN]}>
+            <HealthPage />
+          </ProtectedRoute>
+        ),
+      },
       {
         path: '*',
         element: (

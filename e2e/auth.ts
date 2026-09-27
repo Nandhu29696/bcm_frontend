@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test'
+import { expect, type BrowserContext, type Page } from '@playwright/test'
 
 export interface Credentials {
   email: string
@@ -14,15 +14,15 @@ export const VIEWER: Credentials = {
   password: 'Passw0rd!23',
 }
 
-/** Storage keys the app's axios client reads — see src/api/client.ts. */
-const ACCESS_KEY = 'bcm.access'
-const REFRESH_KEY = 'bcm.refresh'
-
-/** Token pairs per user, for the life of the worker. */
-const tokens = new Map<string, { access: string; refresh: string }>()
+/**
+ * Auth cookies per user, captured once per worker (BUG-21: the backend sets
+ * HttpOnly cookies on login, so there is no token value for a script to read
+ * or replay — only the cookie jar itself can be reused).
+ */
+const sessionCookies = new Map<string, Awaited<ReturnType<BrowserContext['cookies']>>>()
 
 /**
- * Sign in by API once per user, then seed the browser's token storage.
+ * Sign in by API once per user, then seed the browser context's cookie jar.
  *
  * Signing in through the form on every test is what the login throttle exists
  * to stop: ten attempts a minute from one address, and a full run makes more
@@ -31,8 +31,12 @@ const tokens = new Map<string, { access: string; refresh: string }>()
  * which is also how a real session spends almost all of its time.
  */
 export async function signIn(page: Page, who: Credentials) {
-  let pair = tokens.get(who.email)
-  if (!pair) {
+  const cached = sessionCookies.get(who.email)
+  if (cached) {
+    await page.context().addCookies(cached)
+  } else {
+    // `page.request` shares this page's context, so the Set-Cookie headers on
+    // the response land straight in the browser's cookie jar.
     const response = await page.request.post('/api/v1/auth/login/', { data: who })
     const body = await response.json()
     if (body.otp_required) {
@@ -40,20 +44,13 @@ export async function signIn(page: Page, who: Credentials) {
         'Login stopped at the OTP step. Start the backend with REQUIRE_OTP_FOR_LOGIN=False for E2E runs.',
       )
     }
-    if (!body.access) {
+    const cookies = await page.context().cookies()
+    if (!cookies.some((cookie) => cookie.name === 'bcm_access')) {
       throw new Error(`Login failed for ${who.email}: ${JSON.stringify(body)}`)
     }
-    pair = { access: body.access, refresh: body.refresh }
-    tokens.set(who.email, pair)
+    sessionCookies.set(who.email, cookies)
   }
 
-  await page.addInitScript(
-    ([accessKey, refreshKey, access, refresh]) => {
-      localStorage.setItem(accessKey, access)
-      localStorage.setItem(refreshKey, refresh)
-    },
-    [ACCESS_KEY, REFRESH_KEY, pair.access, pair.refresh] as const,
-  )
   await page.goto('/estates')
   await expect(page.getByRole('heading', { name: 'Estates' })).toBeVisible({ timeout: 30_000 })
 }

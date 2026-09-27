@@ -44,9 +44,9 @@ export function SsoCallbackPage() {
 
     authApi
       .ssoCallback(provider, code, state)
-      .then(async (tokens) => {
-        await completeSignIn(tokens.access, tokens.refresh)
-        navigate(tokens.user_status === 'Pending' ? '/pending' : '/estates', {
+      .then(async (result) => {
+        await completeSignIn()
+        navigate(result.user_status === 'Pending' ? '/pending' : '/estates', {
           replace: true,
         })
       })

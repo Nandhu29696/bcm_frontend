@@ -1,6 +1,6 @@
 import { api } from '@/api/client'
 
-import type { CurrentUser, LoginResult, SsoProvider, TokenPair } from './types'
+import type { CurrentUser, LoginResult, SsoProvider } from './types'
 
 export const authApi = {
   async login(email: string, password: string): Promise<LoginResult> {
@@ -8,9 +8,8 @@ export const authApi = {
     return data
   },
 
-  async verifyOtp(email: string, code: string): Promise<TokenPair> {
-    const { data } = await api.post<TokenPair>('/auth/otp/verify/', { email, code })
-    return data
+  async verifyOtp(email: string, code: string): Promise<void> {
+    await api.post('/auth/otp/verify/', { email, code })
   },
 
   async resendOtp(email: string): Promise<{ detail: string }> {
@@ -45,8 +44,8 @@ export const authApi = {
     return data
   },
 
-  async logout(refresh: string): Promise<void> {
-    await api.post('/auth/logout/', { refresh })
+  async logout(): Promise<void> {
+    await api.post('/auth/logout/')
   },
 
   async requestPasswordReset(email: string): Promise<{ detail: string }> {
@@ -86,7 +85,7 @@ export const authApi = {
     provider: string,
     code: string,
     state: string,
-  ): Promise<TokenPair & { user_status: string; new_account: boolean }> {
+  ): Promise<{ user_status: string; new_account: boolean }> {
     const { data } = await api.post(`/auth/${provider}/callback/`, { code, state })
     return data
   },

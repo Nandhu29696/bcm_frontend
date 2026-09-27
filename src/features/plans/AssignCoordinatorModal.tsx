@@ -31,7 +31,7 @@ export function AssignCoordinatorModal({
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
-  const canBrowseEmployees = useHasRole([ROLE.ADMIN, ROLE.BU_LEAD])
+  const canBrowseEmployees = useHasRole([ROLE.ADMIN, ROLE.BU_LEAD, ROLE.COORDINATOR])
   const [search, setSearch] = useState('')
   const [debounced, setDebounced] = useState('')
   const [employeeId, setEmployeeId] = useState<number | null>(null)

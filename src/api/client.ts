@@ -7,66 +7,60 @@ import axios, {
 /**
  * The single axios instance every API call goes through.
  *
- * It handles JWT refresh transparently. The important property is that only ONE
- * refresh request is ever in flight: concurrent 401s queue behind the same
- * promise and retry once it resolves. Without that, a page issuing five parallel
- * requests on an expired token fires five refreshes, and with
- * ROTATE_REFRESH_TOKENS + BLACKLIST_AFTER_ROTATION enabled on the backend, four
- * of them are rejected with a blacklisted token and the user is logged out.
+ * Tokens live in HttpOnly cookies (BUG-21), not in JS-readable storage: the
+ * browser attaches them automatically, and `withCredentials` plus the
+ * xsrf options below make axios do the same with the CSRF double-submit
+ * cookie the backend sets alongside them.
+ *
+ * It also handles JWT refresh transparently. The important property is that
+ * only ONE refresh request is ever in flight: concurrent 401s queue behind
+ * the same promise and retry once it resolves. Without that, a page issuing
+ * five parallel requests on an expired token fires five refreshes, and with
+ * ROTATE_REFRESH_TOKENS + BLACKLIST_AFTER_ROTATION enabled on the backend,
+ * four of them are rejected with a blacklisted token and the user is logged
+ * out.
  */
-
-const ACCESS_TOKEN_KEY = 'bcm.access'
-const REFRESH_TOKEN_KEY = 'bcm.refresh'
-
-export const tokenStore = {
-  get access() {
-    return localStorage.getItem(ACCESS_TOKEN_KEY)
-  },
-  get refresh() {
-    return localStorage.getItem(REFRESH_TOKEN_KEY)
-  },
-  set(access: string, refresh?: string) {
-    localStorage.setItem(ACCESS_TOKEN_KEY, access)
-    if (refresh) localStorage.setItem(REFRESH_TOKEN_KEY, refresh)
-  },
-  clear() {
-    localStorage.removeItem(ACCESS_TOKEN_KEY)
-    localStorage.removeItem(REFRESH_TOKEN_KEY)
-  },
-}
 
 export const api: AxiosInstance = axios.create({
   baseURL: '/api/v1',
   headers: { 'Content-Type': 'application/json' },
-})
-
-api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = tokenStore.access
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  return config
+  withCredentials: true,
+  // Explicit rather than left to axios's same-origin auto-detection: a
+  // silently-missing CSRF header turns into every state-changing request
+  // failing with 403, and this is cheap insurance against that heuristic
+  // changing across axios versions.
+  withXSRFToken: true,
+  xsrfCookieName: 'csrftoken',
+  xsrfHeaderName: 'X-CSRFToken',
 })
 
 /** The in-flight refresh, or null. Shared by every queued retry. */
-let refreshPromise: Promise<string> | null = null
+let refreshPromise: Promise<void> | null = null
 
 function onAuthFailure() {
-  tokenStore.clear()
   // Full reload rather than a router navigate: this can fire from outside the
-  // React tree, and a hard reset clears any stale cached state.
+  // React tree, and a hard reset clears any stale cached state. Nothing to
+  // clear client-side — the cookies are HttpOnly and the backend already
+  // rejected them.
   if (window.location.pathname !== '/login') {
     window.location.href = '/login'
   }
 }
 
-async function refreshAccessToken(): Promise<string> {
-  const refresh = tokenStore.refresh
-  if (!refresh) throw new Error('No refresh token')
-
+async function refreshAccessToken(): Promise<void> {
   // Bare axios, not `api` — going through the instance would recurse into this
-  // same interceptor.
-  const { data } = await axios.post('/api/v1/auth/refresh/', { refresh })
-  tokenStore.set(data.access, data.refresh)
-  return data.access as string
+  // same interceptor. The refresh token rides the HttpOnly cookie; there is
+  // nothing to put in the body.
+  await axios.post(
+    '/api/v1/auth/refresh/',
+    {},
+    {
+      withCredentials: true,
+      withXSRFToken: true,
+      xsrfCookieName: 'csrftoken',
+      xsrfHeaderName: 'X-CSRFToken',
+    },
+  )
 }
 
 api.interceptors.response.use(
@@ -91,8 +85,7 @@ api.interceptors.response.use(
       refreshPromise ??= refreshAccessToken().finally(() => {
         refreshPromise = null
       })
-      const access = await refreshPromise
-      original.headers.Authorization = `Bearer ${access}`
+      await refreshPromise
       return api(original)
     } catch (refreshError) {
       onAuthFailure()

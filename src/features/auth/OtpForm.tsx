@@ -5,11 +5,10 @@ import { toApiError } from '@/api/client'
 import { Alert, AuthCard, Button, Field, Input } from '@/components/ui'
 
 import { authApi } from './api'
-import type { TokenPair } from './types'
 
 interface OtpFormProps {
   email: string
-  onVerified: (tokens: TokenPair) => void | Promise<void>
+  onVerified: () => void | Promise<void>
   onCancel: () => void
 }
 
@@ -20,9 +19,9 @@ export function OtpForm({ email, onVerified, onCancel }: OtpFormProps) {
 
   const verify = useMutation({
     mutationFn: () => authApi.verifyOtp(email, code),
-    onSuccess: (tokens) => {
+    onSuccess: () => {
       setError(null)
-      void onVerified(tokens)
+      void onVerified()
     },
     onError: (err) => setError(toApiError(err).detail),
   })

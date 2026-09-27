@@ -130,7 +130,12 @@ export function ExemptionPanel({ version }: { version: PlanVersion }) {
       )}
 
       {canAuthor && editable && !open && (
-        <Button size="sm" variant="ghost" onClick={() => setDialog('request')}>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="border border-amber-200 bg-amber-50 text-amber-800 hover:border-amber-300 hover:bg-amber-100 hover:text-amber-900"
+          onClick={() => setDialog('request')}
+        >
           Request exemption
         </Button>
       )}

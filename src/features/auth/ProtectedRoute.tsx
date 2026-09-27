@@ -1,8 +1,6 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 
-import { tokenStore } from '@/api/client'
-
 import { hasAnyRole, useCurrentUser } from './useAuth'
 import type { RoleCode } from './types'
 
@@ -14,25 +12,15 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children, roles }: ProtectedRouteProps) {
   const location = useLocation()
-  const hasToken = Boolean(tokenStore.access)
   const { data: user, isPending, isError } = useCurrentUser()
 
-  if (!hasToken) {
-    // Remember where they were headed so sign-in can return them there.
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />
-  }
-
   if (isPending) {
-    return (
-      <div className="flex min-h-full items-center justify-center py-24">
-        <span className="size-6 animate-spin rounded-full border-2 border-ink-200 border-t-brand-600" />
-      </div>
-    )
+    return <AppShellSkeleton />
   }
 
   if (isError || !user) {
-    // A token that will not resolve to a user is not a session.
-    tokenStore.clear()
+    // No cookie, or one that does not resolve to a user — either way, not a
+    // session. Remember where they were headed so sign-in can return them.
     return <Navigate to="/login" replace state={{ from: location.pathname }} />
   }
 
@@ -57,4 +45,35 @@ export function ProtectedRoute({ children, roles }: ProtectedRouteProps) {
   }
 
   return <>{children}</>
+}
+
+/**
+ * Stands in for `AppLayout` while the current-user check is in flight, so the
+ * first paint is shell-shaped instead of a spinner floating in an otherwise
+ * blank viewport that then pops straight to the full chrome.
+ */
+function AppShellSkeleton() {
+  return (
+    <div className="flex h-screen overflow-hidden bg-ink-100" aria-hidden="true">
+      <div className="hidden h-screen w-64 shrink-0 flex-col gap-2 bg-brand-950 p-4 lg:flex">
+        <div className="h-8 w-28 animate-pulse rounded bg-white/10" />
+        <div className="mt-6 space-y-2">
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="h-8 animate-pulse rounded bg-white/8" />
+          ))}
+        </div>
+      </div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex h-14 items-center border-b border-ink-200/70 bg-white px-4 lg:px-8">
+          <div className="h-4 w-40 animate-pulse rounded bg-ink-100" />
+        </div>
+        <div className="flex-1 px-4 py-8 lg:px-8">
+          <div className="mx-auto w-full max-w-7xl space-y-3">
+            <div className="h-6 w-56 animate-pulse rounded bg-ink-200/70" />
+            <div className="h-40 animate-pulse rounded-card bg-white shadow-card" />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }

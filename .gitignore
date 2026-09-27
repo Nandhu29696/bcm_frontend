@@ -11,6 +11,12 @@ node_modules
 dist
 dist-ssr
 *.local
+test-results
+
+# Local dev-server overrides (per-machine, e.g. VITE_API_TARGET) - never committed.
+.env
+.env.*
+!.env.example
 
 # Editor directories and files
 .vscode/*
