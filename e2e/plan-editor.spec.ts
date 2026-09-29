@@ -36,7 +36,7 @@ function sectionTab(page: Page, name: string) {
     .getByRole('tab', { name: new RegExp(`^${name} ([0-9]+%|[0-9]+ left|Done)$`) })
 }
 
-/** A part of the plan: Questionnaire, Recovery objective, BIA, RA, Plan. */
+/** A part of the plan: Questionnaire, Summary, BIA, RA, Plan. */
 function part(page: Page, name: string) {
   return page.getByRole('tablist', { name: 'Parts' }).getByRole('tab', { name, exact: true })
 }
@@ -57,12 +57,12 @@ test.describe('plan editor', () => {
     const tabs = page.getByRole('tablist', { name: /sections/i }).getByRole('tab')
     await expect(tabs).toHaveText([/Basic Questions/, /MAO/, /RTO/, /MBCO/, /RPO/])
     await expect(page.getByRole('tablist', { name: 'Parts' }).getByRole('tab')).toHaveText([
-      /Questionnaire/, /Recovery objective/, /BIA/, /RA/, /Plan/,
+      /Questionnaire/, /Summary/, /BIA/, /RA/, /Plan/,
     ])
     await expect(page.getByText(/All changes saved/)).toBeVisible()
   })
 
-  test('the recovery objective reads the answers and opens the parts', async ({ page }) => {
+  test('the summary hub reads the answers and opens the parts', async ({ page }) => {
     await signIn(page, COORDINATOR)
     await openEditor(page, COST_CODE)
 
@@ -74,7 +74,7 @@ test.describe('plan editor', () => {
     await rto.getByRole('spinbutton').fill(hours)
     await expect(rto.getByText(/^Saved$/)).toBeVisible({ timeout: 5_000 })
 
-    await part(page, 'Recovery objective').click()
+    await part(page, 'Summary').click()
     const objectives = page.getByRole('region', { name: 'Recovery objectives' })
     await expect(objectives).toContainText(`${hours} h`)
     const parts = page.getByRole('list', { name: 'Plan parts' })
@@ -103,7 +103,7 @@ test.describe('plan editor', () => {
     await expect(page.getByRole('region', { name: 'Project network' })).toBeVisible()
   })
 
-  test('a branch appears and disappears with its dependency', async ({ page }) => {
+  test('a branch is disabled when its dependency is not selected', async ({ page }) => {
     await signIn(page, COORDINATOR)
     await openEditor(page, COST_CODE)
 
@@ -113,11 +113,13 @@ test.describe('plan editor', () => {
 
     await q1.getByRole('radio', { name: 'No' }).check()
     await expect(ifNo).toBeVisible()
-    await expect(ifYes).toHaveCount(0)
+    await expect(ifYes).toBeVisible()
+    await expect(ifYes.getByRole('radio', { name: 'Yes' })).toBeDisabled()
 
     await q1.getByRole('radio', { name: 'Yes' }).check()
     await expect(ifYes).toBeVisible()
-    await expect(ifNo).toHaveCount(0)
+    await expect(ifNo).toBeVisible()
+    await expect(ifNo.getByRole('radio', { name: 'Yes' })).toBeDisabled()
     await expect(q1.getByText(/^Saved$/)).toBeVisible()
   })
 

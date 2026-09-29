@@ -131,6 +131,9 @@ export interface CrisisEvent {
   call_tree_run: RunSummary | null
   created_by_name: string
   created_at: string
+  /** Set once the event first reaches Closed or Cancelled — the end of the
+   * Start Date/End Date tracker (event_date/event_time is the start). */
+  closed_at: string | null
   can_manage: boolean
 }
 
@@ -162,6 +165,7 @@ export interface TestFilters {
   status?: string
   test_type?: string
   estate?: number
+  cost_code?: string
 }
 
 // --------------------------------------------------------------------------- //
@@ -212,6 +216,7 @@ export const opsApi = {
     status?: string
     event_type?: string
     estate?: number
+    cost_code?: string
     page?: number
     page_size?: number
   }): Promise<Paginated<CrisisEvent>> {
@@ -284,6 +289,17 @@ export const opsApi = {
     const { data } = await api.get<RunSummary[]>(`/cost-codes/${costCodeId}/call-tree-runs/`)
     return data
   },
+  async providerStatus(): Promise<ProviderStatus> {
+    const { data } = await api.get<ProviderStatus>('/call-tree-providers/')
+    return data
+  },
+}
+
+/** Which call tree channels are actually live in this environment. */
+export interface ProviderStatus {
+  VOICE: boolean
+  MS_TEAMS: boolean
+  EMAIL: boolean
 }
 
 export const opsKeys = {
@@ -297,6 +313,7 @@ export const opsKeys = {
   run: (id: number) => ['call-tree-runs', id] as const,
   runReport: (id: number) => ['call-tree-runs', id, 'report'] as const,
   costCodeRuns: (id: number) => ['cost-codes', id, 'call-tree-runs'] as const,
+  providerStatus: ['call-tree-providers'] as const,
 }
 
 export const CHANNEL_LABEL: Record<Channel, string> = { VOICE: 'Voice', MS_TEAMS: 'Teams', EMAIL: 'Email' }

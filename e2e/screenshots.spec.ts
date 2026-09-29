@@ -42,9 +42,9 @@ test.describe('screenshots', () => {
     await shot(page, '06-editor')
 
     const parts = page.getByRole('tablist', { name: 'Parts' })
-    await parts.getByRole('tab', { name: 'Recovery objective' }).click()
+    await parts.getByRole('tab', { name: 'Summary' }).click()
     await page.getByRole('region', { name: 'Recovery objectives' }).waitFor()
-    await shot(page, '07-recovery-objective')
+    await shot(page, '07-summary')
 
     await parts.getByRole('tab', { name: 'BIA', exact: true }).click()
     await page.getByRole('region', { name: 'Employees on this cost code' }).waitFor()

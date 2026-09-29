@@ -40,6 +40,7 @@ export type AnswerJson =
 
 export interface EditorQuestion {
   question_id: number
+  question_number: number
   question_code: string
   question_text: string
   question_description: string

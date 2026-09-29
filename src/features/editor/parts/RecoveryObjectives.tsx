@@ -27,7 +27,7 @@ export function RecoveryObjectivesPart({
   if (overview.isPending) return <Spinner label="Loading recovery objectives" />
   if (overview.error) return <Alert>{toApiError(overview.error).detail}</Alert>
 
-  const { objectives, stages } = overview.data
+  const { objectives, stages, people } = overview.data
   return (
     <div className="space-y-6">
       <section aria-label="Recovery objectives" className="rounded-card border border-ink-200/80 bg-white shadow-card animate-fade-up">
@@ -72,6 +72,42 @@ export function RecoveryObjectivesPart({
           onOpen={() => onOpen('plan')}
         />
       </div>
+
+      <section aria-label="People" className="rounded-card border border-ink-200/80 bg-white p-5 shadow-card animate-fade-up">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-ink-950">People</h3>
+            <p className="mt-0.5 text-xs text-ink-500">Headcount, MBCO, BU leads and coordinators. Full detail on the BIA tab.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onOpen('bia')}
+            className="inline-flex items-center gap-0.5 text-xs font-medium text-brand-700 hover:underline"
+          >
+            Open BIA <IconChevronRight size={12} />
+          </button>
+        </div>
+        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <PeopleTile label="Headcount" value={people.headcount} />
+          <PeopleTile
+            label="MBCO required"
+            value={people.mbco_required !== null ? `${people.mbco_required} / ${people.headcount}` : '—'}
+            hint={people.mbco_percent !== null ? `${percent(people.mbco_percent)} of headcount` : undefined}
+          />
+          <PeopleTile label="BU leads" value={people.bu_leads.length} />
+          <PeopleTile label="Coordinators" value={people.coordinators.length} />
+        </dl>
+      </section>
+    </div>
+  )
+}
+
+function PeopleTile({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
+  return (
+    <div>
+      <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">{label}</dt>
+      <dd className="mt-1 text-xl font-semibold tabular-nums text-ink-950">{value}</dd>
+      {hint && <p className="mt-0.5 text-xs text-ink-500">{hint}</p>}
     </div>
   )
 }

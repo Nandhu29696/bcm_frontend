@@ -90,7 +90,7 @@ export const reviewApi = {
   exemptions: async (versionId: number): Promise<Exemption[]> => (await api.get(`${v(versionId)}/exemptions/`)).data,
   requestExemption: async (
     versionId: number,
-    payload: { reason: string; answer_1?: string; answer_2?: string; answer_3?: string },
+    payload: { reason: string; comment?: string; answer_1?: string; answer_2?: string; answer_3?: string },
   ): Promise<Exemption> => (await api.post(`${v(versionId)}/exemptions/`, payload)).data,
   decideExemption: async (
     exemptionId: number,

@@ -82,6 +82,12 @@ export const IconSearch = (p: IconProps) => (
     <path d="m20 20-4-4" />
   </Icon>
 )
+export const IconEye = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z" />
+    <circle cx="12" cy="12" r="2.5" />
+  </Icon>
+)
 export const IconPlus = (p: IconProps) => (
   <Icon {...p}>
     <path d="M12 5v14M5 12h14" />

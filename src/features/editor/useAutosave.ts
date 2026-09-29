@@ -5,6 +5,7 @@ import { toApiError } from '@/api/client'
 
 import { editorApi, editorKeys } from './api'
 import type { AnswerJson, Questionnaire, SectionProgress } from './types'
+import { computeVisibility } from './visibility'
 
 export type SaveState = 'dirty' | 'saving' | 'saved' | 'error'
 
@@ -34,6 +35,7 @@ export function useAutosave(questionnaire: Questionnaire) {
   const versionId = questionnaire.plan_version_id
   const context = questionnaire.context
   const queryClient = useQueryClient()
+  const questions = questionnaire.sections.flatMap((section) => section.questions)
 
   // Initialised once from the loaded questionnaire. The page keys the editor on
   // version + context, so a change of either remounts and re-initialises rather
@@ -123,8 +125,18 @@ export function useAutosave(questionnaire: Questionnaire) {
    */
   const setAnswer = useCallback(
     (questionId: number, answer: AnswerJson | null, immediate: boolean) => {
-      latest.current.set(questionId, answer)
-      setAnswers((current) => new Map(current).set(questionId, answer))
+      const nextAnswers = new Map(latest.current).set(questionId, answer)
+      const visibility = computeVisibility(questions, nextAnswers)
+      const clearedQuestionIds = questions
+        .filter((question) => !visibility.get(question.question_id) && nextAnswers.get(question.question_id) != null)
+        .map((question) => question.question_id)
+
+      latest.current = nextAnswers
+      setAnswers((current) => {
+        const next = new Map(current).set(questionId, answer)
+        for (const clearedQuestionId of clearedQuestionIds) next.set(clearedQuestionId, null)
+        return next
+      })
       setState(questionId, { state: 'dirty' })
 
       const pending = timers.current.get(questionId)
@@ -141,8 +153,17 @@ export function useAutosave(questionnaire: Questionnaire) {
           }, TYPED_DEBOUNCE_MS),
         )
       }
+
+      for (const clearedQuestionId of clearedQuestionIds) {
+        const clearedTimer = timers.current.get(clearedQuestionId)
+        if (clearedTimer) clearTimeout(clearedTimer)
+        timers.current.delete(clearedQuestionId)
+        latest.current.set(clearedQuestionId, null)
+        setState(clearedQuestionId, { state: 'dirty' })
+        void write(clearedQuestionId)
+      }
     },
-    [write, setState],
+    [questions, write, setState],
   )
 
   /** Write every debounced answer now — before navigating away. */

@@ -34,7 +34,7 @@ export function QuestionRenderer({ question, answer, disabled, onChange }: Rende
           inputMode="decimal"
           min={0}
           step="any"
-          className="w-36"
+          className={`w-36 ${answeredTint(scalar(answer) !== undefined)}`}
           aria-label={question.question_text}
           disabled={disabled}
           value={scalar(answer) ?? ''}
@@ -47,7 +47,7 @@ export function QuestionRenderer({ question, answer, disabled, onChange }: Rende
       return (
         <Input
           type="date"
-          className="w-44"
+          className={`w-44 ${answeredTint(scalar(answer) !== undefined)}`}
           aria-label={question.question_text}
           disabled={disabled}
           value={String(scalar(answer) ?? '')}
@@ -60,7 +60,7 @@ export function QuestionRenderer({ question, answer, disabled, onChange }: Rende
           rows={3}
           aria-label={question.question_text}
           disabled={disabled}
-          className="w-full rounded-control border border-ink-200 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:bg-ink-50"
+          className={`w-full rounded-control border border-ink-200 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:bg-ink-50 ${answeredTint(scalar(answer) !== undefined)}`}
           value={String(scalar(answer) ?? '')}
           onChange={(e) => onChange(e.target.value ? { value: e.target.value } : null, false)}
         />
@@ -74,6 +74,17 @@ export function QuestionRenderer({ question, answer, disabled, onChange }: Rende
         <p className="text-sm text-red-600">Unsupported answer type: {question.answer_type}</p>
       )
   }
+}
+
+/**
+ * A subtle, consistent tint for a control that already carries an answer —
+ * the same brand highlight the choice pills already use for "selected", so
+ * an answered question reads the same way everywhere in the questionnaire.
+ * `!` (Tailwind's important marker) guards against Tailwind's utility order
+ * winning over the base control's own border/background classes.
+ */
+function answeredTint(hasAnswer: boolean): string {
+  return hasAnswer ? 'border-brand-300! bg-brand-50/70!' : ''
 }
 
 function scalar(answer: AnswerJson | null): string | number | undefined {
@@ -108,7 +119,7 @@ function SingleChoice({ question, answer, disabled, onChange }: RendererProps) {
       {asSelect ? (
         <Select
           aria-label={question.question_text}
-          className="w-64"
+          className={`w-64 ${answeredTint(current !== undefined)}`}
           disabled={disabled}
           value={String(current ?? '')}
           onChange={(e) => onChange(e.target.value ? { value: e.target.value } : null, true)}
@@ -191,7 +202,11 @@ function DetailPicker({
   onChange: (codes: string[]) => void
 }) {
   return (
-    <fieldset className="rounded-control border border-ink-200 bg-ink-50/70 p-3.5">
+    <fieldset
+      className={`rounded-control border p-3.5 ${
+        selected.length ? 'border-brand-300 bg-brand-50/40' : 'border-ink-200 bg-ink-50/70'
+      }`}
+    >
       <legend className="px-1 text-xs font-medium text-ink-600">{label}</legend>
       <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
         {options.map((o) => {

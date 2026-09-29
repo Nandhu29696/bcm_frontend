@@ -212,6 +212,8 @@ test.describe('cost code actions', () => {
     await expect(current).toContainText('Work in Progress')
     await expect(current).toContainText('copied from a previous version')
     const previous = page.getByRole('region', { name: /previous versions/i })
+    // Collapsed by default — only the latest version shows until asked for more.
+    await previous.getByRole('button', { name: /show \d+ previous version/i }).click()
     await expect(previous).toContainText('Version 1')
     await expect(previous).toContainText('Approved')
     // The original stays approved and cannot be copied again while v2 is open.

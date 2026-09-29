@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 
-import { BrandMark, IconClose, IconInbox } from './icons'
+import { BrandMark, IconChevronDown, IconClose, IconInbox } from './icons'
 
 /*
  * The component vocabulary. Every screen is built from these, so the look of
@@ -60,8 +60,14 @@ export function Button({
 // Form controls
 // --------------------------------------------------------------------------- //
 
-const CONTROL =
+// Exported so bespoke dropdown-like controls (e.g. FilterBar's multi-select)
+// can share the same border/shadow/focus language as Input/Select instead of
+// drifting into their own visual style.
+export const CONTROL =
   'w-full rounded-control border border-ink-200 bg-white px-3 text-sm text-ink-900 placeholder:text-ink-400 shadow-[inset_0_1px_2px_oklch(0.2_0.02_260/0.04)] transition-colors focus:border-brand-500 focus:ring-4 focus:ring-brand-100 focus:outline-none disabled:bg-ink-50 disabled:text-ink-500'
+
+export const DROPDOWN_MENU =
+  'overflow-auto rounded-card border border-ink-200 bg-white p-1.5 shadow-raised animate-fade-up'
 
 export function Field({
   label,
@@ -76,7 +82,7 @@ export function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[13px] font-medium text-ink-700">{label}</span>
+      <span className="mb-1.5 block text-[13px] font-semibold text-ink-700">{label}</span>
       {children}
       {hint && !error && <span className="mt-1.5 block text-xs text-ink-500">{hint}</span>}
       {error && (
@@ -97,13 +103,20 @@ export function Select({
   children,
   ...props
 }: SelectHTMLAttributes<HTMLSelectElement>) {
+  // The background-image chevron trick is fragile (arbitrary Tailwind values
+  // can't carry literal spaces), so the affordance is a real icon layered on
+  // top instead — it always renders, and `pointer-events-none` lets clicks
+  // pass straight through to the select underneath.
   return (
-    <select
-      className={`${CONTROL} h-9.5 appearance-none bg-[url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b6f80' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>")] bg-[length:16px] bg-[right_0.6rem_center] bg-no-repeat pr-9 ${className}`}
-      {...props}
-    >
-      {children}
-    </select>
+    <span className="relative block">
+      <select className={`${CONTROL} h-9.5 appearance-none pr-9 ${className}`} {...props}>
+        {children}
+      </select>
+      <IconChevronDown
+        size={16}
+        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-500"
+      />
+    </span>
   )
 }
 
@@ -203,8 +216,8 @@ export function PageHeader({
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4 animate-fade-up">
       <div className="min-w-0 border-l-[3px] border-brand-500 pl-4">
-        {eyebrow && <div className="mb-1 text-xs font-medium text-ink-500">{eyebrow}</div>}
-        <h1 className="truncate text-2xl font-semibold tracking-tight text-ink-950">{title}</h1>
+        {eyebrow && <div className="mb-1 text-xs font-semibold text-brand-700">{eyebrow}</div>}
+        <h1 className="truncate text-2xl font-semibold tracking-tight text-brand-950">{title}</h1>
         {subtitle && <div className="mt-1.5 text-sm text-ink-600">{subtitle}</div>}
       </div>
       {/* Actions stay at the right edge even when the header wraps onto two lines. */}

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useState } from 'react'
 
+import { IconChevronDown } from '@/components/icons'
 import { Button, StatusBadge } from '@/components/ui'
 import { ReviewActions } from '@/features/review/ReviewActions'
 import { DocumentsPanel, ExemptionPanel } from '@/features/review/VersionExtras'
@@ -20,18 +21,28 @@ const PREVIOUS_PAGE_SIZE = 5
 export function VersionList({
   versions,
   canAuthor,
+  canEditContent,
   onAssign,
   onHistory,
   onCopy,
 }: {
   versions: PlanVersion[]
+  /** May answer this plan (open it, assign a coordinator) — admin or an
+   * actively assigned coordinator. */
   canAuthor: boolean
+  /** May edit the plan itself — start a new version, copy one, manage
+   * documents. Administrators only; a coordinator's assignment does not
+   * reach this far. */
+  canEditContent: boolean
   onAssign: (version: PlanVersion) => void
   onHistory: (version: PlanVersion) => void
   onCopy: (version: PlanVersion) => void
 }) {
   const current = versions.find((v) => v.is_current)
   const previous = versions.filter((v) => !v.is_current)
+  // Collapsed by default: the cost code page's job is to show the latest
+  // relevant version, not a full archive. History stays one click away.
+  const [showPrevious, setShowPrevious] = useState(false)
   const [rawPreviousPage, setPreviousPage] = useState(1)
   const previousPageCount = Math.ceil(previous.length / PREVIOUS_PAGE_SIZE)
   // Clamp during render rather than writing the clamp back into state via an
@@ -79,7 +90,7 @@ export function VersionList({
                 <Button variant="secondary" onClick={() => onHistory(current)}>
                   History
                 </Button>
-                {canAuthor && current.can_copy && (
+                {canEditContent && current.can_copy && (
                   <Button variant="secondary" onClick={() => onCopy(current)}>
                     New version
                   </Button>
@@ -90,79 +101,93 @@ export function VersionList({
           </div>
           <Coordinators version={current} />
           <ExemptionPanel version={current} />
-          <DocumentsPanel version={current} canAuthor={canAuthor} />
+          <DocumentsPanel version={current} canAuthor={canEditContent} />
         </section>
       )}
 
       {previous.length > 0 && (
         <section aria-label="Previous versions">
-          <h3 className="mb-2 mt-6 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">
-            Previous versions
-          </h3>
-          <ul className="divide-y divide-ink-100 rounded-card border border-ink-200/80 bg-white shadow-card">
-            {visiblePrevious.map((version) => (
-              <li
-                key={version.plan_version_id}
-                className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-ink-900">
-                      Version {version.version_number}
-                    </span>
-                    <StatusBadge status={version.status} />
-                  </div>
-                  <VersionMeta version={version} />
-                </div>
-                <div className="flex flex-wrap gap-2 sm:justify-self-end">
-                  <Link to={`/plan-versions/${version.plan_version_id}`}>
-                    <Button variant="ghost">View</Button>
-                  </Link>
-                  <Button variant="ghost" onClick={() => onHistory(version)}>
-                    History
-                  </Button>
-                  {canAuthor && version.can_copy && (
-                    <Button variant="ghost" onClick={() => onCopy(version)}>
-                      Copy as new
+          <button
+            type="button"
+            onClick={() => setShowPrevious((value) => !value)}
+            aria-expanded={showPrevious}
+            className="mb-2 mt-6 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500 transition-colors hover:text-brand-700"
+          >
+            <IconChevronDown
+              size={12}
+              className={`transition-transform ${showPrevious ? 'rotate-180' : ''}`}
+            />
+            {showPrevious ? 'Hide' : 'Show'} {previous.length} previous version
+            {previous.length === 1 ? '' : 's'}
+          </button>
+          {showPrevious && (
+            <>
+              <ul className="divide-y divide-ink-100 rounded-card border border-ink-200/80 bg-white shadow-card">
+                {visiblePrevious.map((version) => (
+                  <li
+                    key={version.plan_version_id}
+                    className="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-ink-900">
+                          Version {version.version_number}
+                        </span>
+                        <StatusBadge status={version.status} />
+                      </div>
+                      <VersionMeta version={version} />
+                    </div>
+                    <div className="flex flex-wrap gap-2 sm:justify-self-end">
+                      <Link to={`/plan-versions/${version.plan_version_id}`}>
+                        <Button variant="ghost">View</Button>
+                      </Link>
+                      <Button variant="ghost" onClick={() => onHistory(version)}>
+                        History
+                      </Button>
+                      {canEditContent && version.can_copy && (
+                        <Button variant="ghost" onClick={() => onCopy(version)}>
+                          Copy as new
+                        </Button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {previousPageCount > 1 && (
+                <nav
+                  aria-label="Previous version pages"
+                  className="flex flex-wrap items-center justify-between gap-3 px-1 pt-3 text-xs text-ink-500"
+                >
+                  <span>
+                    Showing {(previousPage - 1) * PREVIOUS_PAGE_SIZE + 1}-
+                    {Math.min(previousPage * PREVIOUS_PAGE_SIZE, previous.length)} of {previous.length}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setPreviousPage((page) => page - 1)}
+                      disabled={previousPage === 1}
+                      aria-label="Previous versions page"
+                    >
+                      Previous
                     </Button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-          {previousPageCount > 1 && (
-            <nav
-              aria-label="Previous version pages"
-              className="flex flex-wrap items-center justify-between gap-3 px-1 pt-3 text-xs text-ink-500"
-            >
-              <span>
-                Showing {(previousPage - 1) * PREVIOUS_PAGE_SIZE + 1}-
-                {Math.min(previousPage * PREVIOUS_PAGE_SIZE, previous.length)} of {previous.length}
-              </span>
-              <div className="flex items-center gap-1.5">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setPreviousPage((page) => page - 1)}
-                  disabled={previousPage === 1}
-                  aria-label="Previous versions page"
-                >
-                  Previous
-                </Button>
-                <span aria-live="polite" className="min-w-16 text-center">
-                  Page {previousPage} of {previousPageCount}
-                </span>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setPreviousPage((page) => page + 1)}
-                  disabled={previousPage === previousPageCount}
-                  aria-label="Next versions page"
-                >
-                  Next
-                </Button>
-              </div>
-            </nav>
+                    <span aria-live="polite" className="min-w-16 text-center">
+                      Page {previousPage} of {previousPageCount}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setPreviousPage((page) => page + 1)}
+                      disabled={previousPage === previousPageCount}
+                      aria-label="Next versions page"
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </nav>
+              )}
+            </>
           )}
         </section>
       )}

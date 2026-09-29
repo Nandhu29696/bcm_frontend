@@ -1,11 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import { api, toApiError } from '@/api/client'
 import { pageOf } from '@/components/paging'
 import { Alert, Button, EmptyState, Input, PageHeader, Pager, Select, StatusBadge, TableSkeleton } from '@/components/ui'
 import { useToast } from '@/components/useToast'
+import { estateApi, estateKeys } from '@/features/estates/api'
 import { formatDateTime } from '@/features/plans/format'
+
+const SEARCH_DEBOUNCE_MS = 300
 
 interface LogRow {
   notification_log_id: number
@@ -21,9 +25,20 @@ interface LogRow {
   resendable: boolean
 }
 
+interface LogFilters {
+  status: string
+  search: string
+  estate: string
+  cost_code: string
+}
+
 const logApi = {
-  list: async (status: string, search: string): Promise<{ results: LogRow[]; counts: Record<string, number> }> =>
-    (await api.get('/admin/notifications/', { params: { ...(status ? { status } : {}), ...(search ? { search } : {}) } })).data,
+  list: async (filters: LogFilters): Promise<{ results: LogRow[]; counts: Record<string, number> }> =>
+    (
+      await api.get('/admin/notifications/', {
+        params: Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== '')),
+      })
+    ).data,
   resend: async (id: number): Promise<LogRow> => (await api.post(`/admin/notifications/${id}/resend/`)).data,
 }
 
@@ -32,10 +47,14 @@ export function NotificationLogPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const status = searchParams.get('status') ?? ''
   const search = searchParams.get('search') ?? ''
+  const estate = searchParams.get('estate') ?? ''
+  const costCode = searchParams.get('cost_code') ?? ''
   const page = Math.max(1, Number(searchParams.get('page')) || 1)
   const queryClient = useQueryClient()
   const toast = useToast()
-  const log = useQuery({ queryKey: ['admin', 'notifications', status, search], queryFn: () => logApi.list(status, search) })
+  const filters: LogFilters = { status, search, estate, cost_code: costCode }
+  const log = useQuery({ queryKey: ['admin', 'notifications', filters], queryFn: () => logApi.list(filters) })
+  const estates = useQuery({ queryKey: estateKeys.all, queryFn: estateApi.list })
   const resend = useMutation({
     mutationFn: (id: number) => logApi.resend(id),
     onSuccess: (row) => {
@@ -52,6 +71,20 @@ export function NotificationLogPage() {
     if (key !== 'page') next.delete('page')
     setSearchParams(next, { replace: true })
   }
+
+  // The cost code box is typed into, so it is debounced before it reaches the
+  // URL and the API — same pattern as the estate/cost-code list's search.
+  const [costCodeText, setCostCodeText] = useState(costCode)
+  const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const onCostCodeChange = useCallback((value: string) => {
+    setCostCodeText(value)
+    clearTimeout(debounce.current)
+    debounce.current = setTimeout(() => setParam('cost_code', value), SEARCH_DEBOUNCE_MS)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => () => clearTimeout(debounce.current), [])
+
+  const hasActiveFilters = Boolean(status || search || estate || costCode)
   const counts = log.data?.counts ?? {}
   const matchingCount = status ? counts[status] : Object.values(counts).reduce((total, count) => total + count, 0)
 
@@ -78,8 +111,38 @@ export function NotificationLogPage() {
             <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Find a notification</span>
             <Input type="search" value={search} onChange={(e) => setParam('search', e.target.value)} placeholder="Search recipient or subject" aria-label="Search notifications" />
           </label>
-          {search && (
-            <Button type="button" size="sm" variant="ghost" className="lg:mb-0.5" onClick={() => setSearchParams({}, { replace: true })}>
+          <label className="lg:w-44">
+            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Estate</span>
+            <Select value={estate} onChange={(e) => setParam('estate', e.target.value)} aria-label="Filter by estate">
+              <option value="">All estates</option>
+              {estates.data?.map((e) => (
+                <option key={e.estate_id} value={e.estate_id}>
+                  {e.estate_name}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <label className="lg:w-40">
+            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Cost code</span>
+            <Input
+              type="search"
+              value={costCodeText}
+              onChange={(e) => onCostCodeChange(e.target.value)}
+              placeholder="Search cost code"
+              aria-label="Filter by cost code"
+            />
+          </label>
+          {hasActiveFilters && (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="lg:mb-0.5"
+              onClick={() => {
+                setCostCodeText('')
+                setSearchParams({}, { replace: true })
+              }}
+            >
               Clear filters
             </Button>
           )}

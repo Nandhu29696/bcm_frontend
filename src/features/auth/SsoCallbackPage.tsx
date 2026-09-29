@@ -5,7 +5,7 @@ import { toApiError } from '@/api/client'
 import { Alert, AuthCard, Button } from '@/components/ui'
 
 import { authApi } from './api'
-import { useAuth } from './useAuth'
+import { postLoginPath, useAuth } from './useAuth'
 
 /**
  * Where the identity provider sends the browser back to.
@@ -45,8 +45,8 @@ export function SsoCallbackPage() {
     authApi
       .ssoCallback(provider, code, state)
       .then(async (result) => {
-        await completeSignIn()
-        navigate(result.user_status === 'Pending' ? '/pending' : '/estates', {
+        const user = await completeSignIn()
+        navigate(result.user_status === 'Pending' ? '/pending' : postLoginPath(user), {
           replace: true,
         })
       })

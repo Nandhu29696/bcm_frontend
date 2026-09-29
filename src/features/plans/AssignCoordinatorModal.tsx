@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { toApiError } from '@/api/client'
-import { Alert, Button, Field, Input, Modal, Select } from '@/components/ui'
+import { Alert, Button, DROPDOWN_MENU, Field, Input, Modal, Select } from '@/components/ui'
 import { ROLE } from '@/features/auth/types'
 import { useHasRole } from '@/features/auth/useAuth'
 
@@ -154,7 +154,7 @@ export function AssignCoordinatorModal({
               <div
                 role="listbox"
                 aria-label="Matching employees"
-                className="max-h-56 overflow-auto rounded-md border border-ink-200"
+                className={`max-h-56 ${DROPDOWN_MENU}`}
               >
                 {employees.isPending && (
                   <p className="px-3 py-2 text-sm text-ink-500">Searching…</p>

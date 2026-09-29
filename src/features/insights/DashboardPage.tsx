@@ -3,7 +3,7 @@ import { useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
 import { toApiError } from '@/api/client'
-import { Alert, PageHeader, Select, Spinner, StatusBadge } from '@/components/ui'
+import { Alert, Badge, PageHeader, Select, Spinner, StatusBadge } from '@/components/ui'
 import { estateApi, estateKeys } from '@/features/estates/api'
 import { formatDate } from '@/features/operations/format'
 import { formatDateTime } from '@/features/plans/format'
@@ -53,7 +53,16 @@ export function DashboardPage() {
       <PageHeader
         title="Dashboard"
         eyebrow="Programme status"
-        subtitle={dashboard.data ? `As of ${formatDateTime(dashboard.data.generated_at)}` : undefined}
+        subtitle={
+          dashboard.data ? (
+            <span className="inline-flex flex-wrap items-center gap-2">
+              {`As of ${formatDateTime(dashboard.data.generated_at)}`}
+              {dashboard.data.narrowed_to_own && (
+                <Badge className="bg-brand-50 text-brand-800">My cost codes</Badge>
+              )}
+            </span>
+          ) : undefined
+        }
       >
         <Select
           value={estateId ?? ''}
@@ -211,7 +220,7 @@ function Stat({ label, value, sub, tone = 'brand' }: { label: string; value: num
   const tones = { brand: 'text-brand-700', emerald: 'text-emerald-700', amber: 'text-amber-700', red: 'text-red-700', ink: 'text-ink-700' }
   return (
     <div className="rounded-card border border-ink-200/80 bg-white px-4 py-3 shadow-card">
-      <div className="truncate text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">{label}</div>
+      <div className="truncate text-[11px] font-bold uppercase tracking-[0.08em] text-brand-800">{label}</div>
       <div className={`mt-0.5 text-2xl font-semibold tabular-nums ${tones[tone]}`}>{value}</div>
       {sub && <div className="truncate text-xs text-ink-500">{sub}</div>}
     </div>
@@ -223,7 +232,7 @@ function Panel({ title, subtitle, actions, children }: { title: string; subtitle
     <section aria-label={title} className="rounded-card border border-ink-200/80 bg-white p-4 shadow-card">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">{title}</h2>
+          <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand-800">{title}</h2>
           {subtitle && <p className="text-xs text-ink-500">{subtitle}</p>}
         </div>
         {actions}

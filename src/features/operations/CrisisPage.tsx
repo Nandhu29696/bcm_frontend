@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { toApiError } from '@/api/client'
+import { IconSearch } from '@/components/icons'
 import { PAGE_SIZE } from '@/components/paging'
 import { Alert, Badge, Button, EmptyState, Field, FilterBar, FilterItem, Input, Modal, PageHeader, Pager, Select, StatusBadge, TableSkeleton, Textarea } from '@/components/ui'
 import { ROLE } from '@/features/auth/types'
 import { useHasRole } from '@/features/auth/useAuth'
+import { estateApi, estateKeys } from '@/features/estates/api'
 import { formatDateTime } from '@/features/plans/format'
 
 import { CostCodePicker } from './CostCodePicker'
@@ -14,19 +16,24 @@ import { EVENT_TYPES, opsApi, opsKeys, type EventType } from './api'
 import { SimulationChoice } from './TestDetailPage'
 import { formatDate } from './format'
 
+const SEARCH_DEBOUNCE_MS = 300
+
 /** Crisis events in scope, newest first, and the button that declares one. */
 export function CrisisPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const status = searchParams.get('status') ?? ''
   const eventType = searchParams.get('event_type') ?? ''
+  const estateId = Number(searchParams.get('estate')) || undefined
+  const costCode = searchParams.get('cost_code') ?? ''
   const page = Math.max(1, Number(searchParams.get('page')) || 1)
-  const filters = { status, event_type: eventType, page, page_size: PAGE_SIZE }
+  const filters = { status, event_type: eventType, estate: estateId, cost_code: costCode, page, page_size: PAGE_SIZE }
   const events = useQuery({
     queryKey: opsKeys.events(filters),
     queryFn: () => opsApi.events(filters),
     // Keep the previous page on screen while the next one loads.
     placeholderData: (previous) => previous,
   })
+  const estates = useQuery({ queryKey: estateKeys.all, queryFn: estateApi.list })
   const [declaring, setDeclaring] = useState(false)
   const canDeclare = useHasRole([ROLE.ADMIN, ROLE.COORDINATOR, ROLE.BU_LEAD, ROLE.TEST_MANAGER, ROLE.APPROVER])
 
@@ -39,6 +46,18 @@ export function CrisisPage() {
     setSearchParams(next, { replace: true })
   }
 
+  // The cost code box is typed into, so it is debounced before it reaches the
+  // URL and the API — same pattern as the estate/cost-code list's search.
+  const [searchText, setSearchText] = useState(costCode)
+  const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const onSearchChange = useCallback((value: string) => {
+    setSearchText(value)
+    clearTimeout(debounce.current)
+    debounce.current = setTimeout(() => setParam('cost_code', value), SEARCH_DEBOUNCE_MS)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => () => clearTimeout(debounce.current), [])
+
   return (
     <>
       <PageHeader title="Crisis Management" eyebrow="Incidents, exercises and the CMSC call tree" subtitle={events.data ? `${events.data.count} event${events.data.count === 1 ? '' : 's'}` : undefined}>
@@ -46,10 +65,34 @@ export function CrisisPage() {
       </PageHeader>
 
       <FilterBar
-        active={[status, eventType].filter(Boolean).length}
-        onClear={() => setSearchParams({}, { replace: true })}
+        active={[status, eventType, estateId ? String(estateId) : '', costCode].filter(Boolean).length}
+        onClear={() => {
+          setSearchText('')
+          setSearchParams({}, { replace: true })
+        }}
         count={events.data ? `${events.data.count} event${events.data.count === 1 ? '' : 's'}` : undefined}
       >
+        <FilterItem className="relative w-48">
+          <IconSearch size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
+          <Input
+            className="pl-9"
+            type="search"
+            value={searchText}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search cost code"
+            aria-label="Search by cost code"
+          />
+        </FilterItem>
+        <FilterItem className="w-48">
+          <Select value={estateId ?? ''} onChange={(e) => setParam('estate', e.target.value)} aria-label="Filter by estate">
+            <option value="">All estates</option>
+            {estates.data?.map((estate) => (
+              <option key={estate.estate_id} value={estate.estate_id}>
+                {estate.estate_name}
+              </option>
+            ))}
+          </Select>
+        </FilterItem>
         <FilterItem className="w-44">
           <Select value={status} onChange={(e) => setParam('status', e.target.value)} aria-label="Filter by status">
             <option value="">All statuses</option>
@@ -92,8 +135,13 @@ export function CrisisPage() {
               {events.data.results.map((e) => (
                 <tr key={e.crisis_event_id}>
                   <td className="whitespace-nowrap">
-                    {formatDate(e.event_date)}
+                    <span title="Start date">{formatDate(e.event_date)}</span>
                     {e.event_time && <span className="block text-xs text-ink-500">{e.event_time.slice(0, 5)}</span>}
+                    {e.closed_at && (
+                      <span className="block text-xs text-ink-400" title="End date">
+                        Ended {formatDateTime(e.closed_at)}
+                      </span>
+                    )}
                   </td>
                   {/* One cell says what and where: the cost code, the type, the
                       process and estate. The old layout spent a column on each

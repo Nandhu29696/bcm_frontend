@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { toApiError } from '@/api/client'
-import { Alert, Badge, Button, Field, Modal, Spinner, Textarea } from '@/components/ui'
+import { Alert, Badge, Button, Field, Modal, Select, Spinner, Textarea } from '@/components/ui'
 import { planKeys } from '@/features/plans/api'
 import { formatDateTime } from '@/features/plans/format'
 import type { PlanVersion } from '@/features/plans/types'
@@ -84,6 +84,15 @@ const STATUS_TONE: Record<string, string> = {
   Rejected: 'bg-red-50 text-red-800',
   Rework: 'bg-blue-50 text-blue-800',
 }
+
+const EXEMPTION_REASONS = [
+  'Projects with employees less than or equal to 1% allocation',
+  'Minor projects with less than 3 employees',
+  'Projects operating entirely from Client Site',
+  'Short term or Transition projects with less than or equal to 3 months life span',
+  'No BCP requirement in the Contract',
+  'Others',
+]
 
 /** Exemption request and decision (Phase 7.5) for one version. */
 export function ExemptionPanel({ version }: { version: PlanVersion }) {
@@ -188,10 +197,17 @@ function ExemptionDialog({
   onDone: () => void
 }) {
   const [text, setText] = useState(kind === 'resubmit' ? (exemption?.reason ?? '') : '')
-  const [answer1, setAnswer1] = useState('')
+  const [regulatoryRequirement, setRegulatoryRequirement] = useState('')
+  const [comment, setComment] = useState('')
   const mutation = useMutation({
     mutationFn: () => {
-      if (kind === 'request') return reviewApi.requestExemption(versionId, { reason: text, answer_1: answer1 })
+      if (kind === 'request') {
+        return reviewApi.requestExemption(versionId, {
+          reason: text,
+          comment,
+          answer_1: regulatoryRequirement,
+        })
+      }
       if (kind === 'resubmit') return reviewApi.resubmitExemption(exemption!.exemption_id, text)
       return reviewApi.decideExemption(exemption!.exemption_id, kind, text)
     },
@@ -226,12 +242,55 @@ function ExemptionDialog({
           <p className="text-sm text-ink-600">The plan version will be marked Exempted and needs no further work.</p>
         )}
         {failure && <Alert>{failure.detail}</Alert>}
-        <Field label={labels[kind]}>
-          <Textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} required={kind !== 'approve' && kind !== 'reject'} />
-        </Field>
         {kind === 'request' && (
-          <Field label="Which clients or services are affected? (optional)">
-            <Textarea rows={2} value={answer1} onChange={(e) => setAnswer1(e.target.value)} />
+          <>
+            <Field label="Are there any regulatory / legal requirements for Business Continuity in your process?">
+              <div className="flex gap-2" role="radiogroup" aria-label="Regulatory or legal requirements">
+                {['Yes', 'No'].map((option) => (
+                  <label
+                    key={option}
+                    className={`inline-flex cursor-pointer items-center gap-2 rounded-control border px-4 py-2 text-sm font-medium transition-colors ${
+                      regulatoryRequirement === option
+                        ? 'border-brand-500 bg-brand-50 text-brand-800 ring-2 ring-brand-100'
+                        : 'border-ink-200 bg-white text-ink-700 hover:border-ink-300 hover:bg-ink-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="regulatory-requirement"
+                      value={option}
+                      checked={regulatoryRequirement === option}
+                      onChange={() => setRegulatoryRequirement(option)}
+                      className="h-4 w-4 border-ink-300 text-brand-600 focus:ring-brand-500"
+                    />
+                    {option}
+                  </label>
+                ))}
+              </div>
+            </Field>
+            <Field label="Reason for BCP exemption">
+              <Select value={text} onChange={(e) => setText(e.target.value)} required>
+                <option value="">Select a reason</option>
+                {EXEMPTION_REASONS.map((reason) => (
+                  <option key={reason} value={reason}>
+                    {reason}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Comment (optional)">
+              <Textarea
+                rows={3}
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Add any additional context for this exemption request"
+              />
+            </Field>
+          </>
+        )}
+        {kind !== 'request' && (
+          <Field label={labels[kind]}>
+            <Textarea rows={3} value={text} onChange={(e) => setText(e.target.value)} required={kind !== 'approve' && kind !== 'reject'} />
           </Field>
         )}
         <div className="flex justify-end gap-2">

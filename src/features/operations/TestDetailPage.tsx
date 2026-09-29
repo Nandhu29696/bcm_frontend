@@ -255,6 +255,9 @@ export function RunCallTreeModal({ test, onClose, onDone }: { test: PlanTest; on
 }
 
 export function SimulationChoice({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  const providers = useQuery({ queryKey: opsKeys.providerStatus, queryFn: opsApi.providerStatus, staleTime: 60_000 })
+  const liveConfigured = providers.data ? providers.data.VOICE || providers.data.MS_TEAMS : true
+
   return (
     <fieldset className="space-y-2">
       <legend className="mb-1.5 text-[13px] font-medium text-ink-700">Mode</legend>
@@ -272,6 +275,13 @@ export function SimulationChoice({ value, onChange }: { value: boolean; onChange
           <span className="block text-xs text-ink-500">Calls, Teams and emails go to real people through whichever providers this environment has enabled.</span>
         </span>
       </label>
+      {!value && providers.data && !liveConfigured && (
+        <p className="rounded-control border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Live calling is not configured in this environment — voice and Teams are both off, so
+          nobody will actually be contacted. Email still goes out. Ask the BCM team to confirm
+          before relying on this for a real exercise.
+        </p>
+      )}
     </fieldset>
   )
 }

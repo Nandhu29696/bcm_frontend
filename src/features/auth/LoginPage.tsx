@@ -11,7 +11,7 @@ import { Alert, AuthCard, Button, Field, Input } from '@/components/ui'
 import { authApi } from './api'
 import { OtpForm } from './OtpForm'
 import { SsoButtons } from './SsoButtons'
-import { useAuth } from './useAuth'
+import { postLoginPath, useAuth } from './useAuth'
 
 const schema = z.object({
   email: z.email('Enter a valid email address.'),
@@ -39,8 +39,7 @@ export function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
 
-  const redirectTo =
-    (location.state as { from?: string } | null)?.from ?? '/estates'
+  const explicitFrom = (location.state as { from?: string } | null)?.from
 
   const loginMutation = useMutation({
     mutationFn: ({ email, password }: FormValues) => authApi.login(email, password),
@@ -51,8 +50,8 @@ export function LoginPage() {
         setOtpEmail(result.email)
         return
       }
-      await completeSignIn()
-      navigate(redirectTo, { replace: true })
+      const user = await completeSignIn()
+      navigate(postLoginPath(user, explicitFrom), { replace: true })
     },
     onError: (error) => setFormError(toApiError(error).detail),
   })
@@ -62,8 +61,8 @@ export function LoginPage() {
       <OtpForm
         email={otpEmail}
         onVerified={async () => {
-          await completeSignIn()
-          navigate(redirectTo, { replace: true })
+          const user = await completeSignIn()
+          navigate(postLoginPath(user, explicitFrom), { replace: true })
         }}
         onCancel={() => setOtpEmail(null)}
       />

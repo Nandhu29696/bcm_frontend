@@ -44,6 +44,12 @@ export function BiaPart({
     group,
     questions: questions.filter((q) => DEPENDENCY_GROUPS[q.question_code] === group),
   })).filter((g) => g.questions.length > 0)
+  let questionNumber = 0
+
+  function renderInBiaOrder(question: EditorQuestion): ReactNode {
+    questionNumber += 1
+    return renderQuestion({ ...question, question_number: questionNumber })
+  }
 
   return (
     <div className="space-y-8">
@@ -51,7 +57,7 @@ export function BiaPart({
         {details.length === 0 ? (
           <p className="text-sm text-ink-500">No BIA questions are in the question bank.</p>
         ) : (
-          details.map(renderQuestion)
+          details.map(renderInBiaOrder)
         )}
         <ServiceDescriptionEditor versionId={versionId} readOnly={readOnly} />
       </PartSection>
@@ -69,7 +75,7 @@ export function BiaPart({
                 {d.group}
                 <Badge>{d.questions.length}</Badge>
               </h4>
-              {d.questions.map(renderQuestion)}
+              {d.questions.map(renderInBiaOrder)}
             </div>
           ))
         )}

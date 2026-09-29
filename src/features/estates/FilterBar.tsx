@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { IconChevronDown, IconSearch } from '@/components/icons'
-import { Button, Input } from '@/components/ui'
+import { Button, CONTROL, DROPDOWN_MENU, Input } from '@/components/ui'
 
 import type { CostCodeFilters, FilterOptions, NamedRef } from './types'
 
@@ -16,6 +16,7 @@ interface FilterBarProps {
     value: number | string,
   ) => void
   onClear: () => void
+  lockedProcessName?: string
 }
 
 /**
@@ -34,6 +35,7 @@ export function FilterBar({
   onTextChange,
   onToggle,
   onClear,
+  lockedProcessName,
 }: FilterBarProps) {
   return (
     // A named search landmark: it gives screen-reader users a way to jump
@@ -56,13 +58,19 @@ export function FilterBar({
           />
         </div>
 
-        <MultiSelect
-          label="Process"
-          options={options?.process ?? []}
-          selected={filters.process}
-          loading={optionsLoading}
-          onToggle={(id) => onToggle('process', id)}
-        />
+        {lockedProcessName ? (
+          <div className="inline-flex h-9.5 items-center gap-1.5 rounded-control border border-brand-300 bg-brand-50 px-3 text-sm font-medium text-brand-800">
+            Process: {lockedProcessName}
+          </div>
+        ) : (
+          <MultiSelect
+            label="Process"
+            options={options?.process ?? []}
+            selected={filters.process}
+            loading={optionsLoading}
+            onToggle={(id) => onToggle('process', id)}
+          />
+        )}
         <MultiSelect
           label="Subprocess"
           options={options?.subprocess ?? []}
@@ -113,7 +121,7 @@ interface MultiSelectProps<T extends number | string> {
   onToggle: (value: T) => void
 }
 
-function MultiSelect<T extends number | string>({
+export function MultiSelect<T extends number | string>({
   label,
   options,
   selected,
@@ -148,10 +156,12 @@ function MultiSelect<T extends number | string>({
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={() => setOpen((value) => !value)}
-        className={`inline-flex h-9.5 items-center gap-1.5 rounded-control border px-3 text-sm font-medium transition-colors ${
+        // Same border/shadow/focus language as every other dropdown (`CONTROL`),
+        // with `w-full` overridden so the button still sizes to its content.
+        className={`${CONTROL} w-auto! inline-flex h-9.5 items-center gap-1.5 font-medium ${
           count > 0
             ? 'border-brand-300 bg-brand-50 text-brand-800'
-            : 'border-ink-200 bg-white text-ink-700 shadow-card hover:border-ink-300 hover:bg-ink-50'
+            : 'text-ink-700 hover:bg-ink-50'
         }`}
       >
         {label}
@@ -168,7 +178,7 @@ function MultiSelect<T extends number | string>({
           role="listbox"
           aria-label={label}
           aria-multiselectable="true"
-          className="absolute left-0 z-20 mt-1.5 max-h-72 w-64 overflow-auto rounded-card border border-ink-200 bg-white p-1.5 shadow-raised animate-fade-up"
+          className={`absolute left-0 z-20 mt-1.5 max-h-72 w-64 ${DROPDOWN_MENU}`}
         >
           {loading && <p className="px-3 py-2 text-sm text-ink-500">Loading…</p>}
           {!loading && options.length === 0 && (

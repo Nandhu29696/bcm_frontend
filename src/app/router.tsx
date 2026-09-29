@@ -1,4 +1,4 @@
-import { createBrowserRouter, Link, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Link } from 'react-router-dom'
 
 import { page } from '@/app/lazy'
 
@@ -6,7 +6,7 @@ import { AppLayout } from '@/app/AppLayout'
 import { ForgotPasswordPage, ResetPasswordPage } from '@/features/auth/PasswordPages'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { PendingPage } from '@/features/auth/PendingPage'
-import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
+import { IndexRedirect, ProtectedRoute } from '@/features/auth/ProtectedRoute'
 import { SsoCallbackPage } from '@/features/auth/SsoCallbackPage'
 import { ROLE } from '@/features/auth/types'
 import { HealthPage } from '@/features/system/HealthPage'
@@ -17,6 +17,8 @@ const NotificationLogPage = page(() => import('@/features/admin/NotificationLogP
 const UsersPage = page(() => import('@/features/admin/UsersPage').then((m) => ({ default: m.UsersPage })))
 const CostCodeListPage = page(() => import('@/features/estates/CostCodeListPage').then((m) => ({ default: m.CostCodeListPage })))
 const EstateListPage = page(() => import('@/features/estates/EstateListPage').then((m) => ({ default: m.EstateListPage })))
+const ProcessListPage = page(() => import('@/features/estates/ProcessListPage').then((m) => ({ default: m.ProcessListPage })))
+const MyPlansPage = page(() => import('@/features/plans/MyPlansPage').then((m) => ({ default: m.MyPlansPage })))
 const PlanEditorPage = page(() => import('@/features/editor/PlanEditorPage').then((m) => ({ default: m.PlanEditorPage })))
 const CostCodeDetailPage = page(() => import('@/features/plans/CostCodeDetailPage').then((m) => ({ default: m.CostCodeDetailPage })))
 const ReviewQueuePage = page(() => import('@/features/review/ReviewQueuePage').then((m) => ({ default: m.ReviewQueuePage })))
@@ -59,8 +61,18 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      { index: true, element: <Navigate to="/estates" replace /> },
+      { index: true, element: <IndexRedirect /> },
       { path: 'estates', element: <EstateListPage /> },
+      { path: 'estates/:estateId/processes', element: <ProcessListPage /> },
+      { path: 'estates/:estateId/processes/:processId/cost-codes', element: <CostCodeListPage /> },
+      {
+        path: 'my-plans',
+        element: (
+          <ProtectedRoute roles={[ROLE.BU_LEAD, ROLE.COORDINATOR]}>
+            <MyPlansPage />
+          </ProtectedRoute>
+        ),
+      },
       { path: 'estates/:estateId/cost-codes', element: <CostCodeListPage /> },
       { path: 'cost-codes/:costCodeId', element: <CostCodeDetailPage /> },
       { path: 'plan-versions/:planVersionId', element: <PlanEditorPage /> },
@@ -72,7 +84,14 @@ export const router = createBrowserRouter([
       { path: 'crisis/:eventId', element: <CrisisEventPage /> },
       { path: 'help', element: <HelpPage /> },
       { path: 'reports', element: <ReportsPage /> },
-      { path: 'dashboard', element: <DashboardPage /> },
+      {
+        path: 'dashboard',
+        element: (
+          <ProtectedRoute denyRoles={[ROLE.BU_LEAD, ROLE.COORDINATOR]}>
+            <DashboardPage />
+          </ProtectedRoute>
+        ),
+      },
       {
         path: 'admin/users',
         element: (

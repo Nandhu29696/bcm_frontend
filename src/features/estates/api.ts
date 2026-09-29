@@ -6,6 +6,7 @@ import type {
   Estate,
   FilterOptions,
   Paginated,
+  ProcessSummary,
 } from './types'
 
 /**
@@ -43,6 +44,13 @@ export const estateApi = {
     return data
   },
 
+  async processes(estateId: number): Promise<ProcessSummary[]> {
+    const { data } = await api.get<ProcessSummary[]>(
+      `/estates/${estateId}/processes/`,
+    )
+    return data
+  },
+
   async costCodes(
     estateId: number,
     filters: CostCodeFilters,
@@ -65,6 +73,7 @@ export const estateApi = {
 export const estateKeys = {
   all: ['estates'] as const,
   detail: (id: number) => ['estates', id] as const,
+  processes: (id: number) => ['estates', id, 'processes'] as const,
   costCodes: (id: number, filters: CostCodeFilters) =>
     ['estates', id, 'cost-codes', filters] as const,
   filterOptions: (id: number) => ['estates', id, 'filter-options'] as const,

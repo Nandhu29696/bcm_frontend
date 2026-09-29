@@ -62,7 +62,7 @@ export function RosterPanel({ costCodeId }: { costCodeId: number }) {
     <section aria-label="CMSC roster" className="rounded-card border border-ink-200/80 bg-white p-5 shadow-card">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">CMSC roster</h2>
+          <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand-800">CMSC roster</h2>
           <p className="text-xs text-ink-500">{results.length} member{results.length === 1 ? '' : 's'} the call tree will contact</p>
         </div>
         {can_manage && (

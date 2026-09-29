@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
 import { toApiError } from '@/api/client'
+import { IconSearch } from '@/components/icons'
 import { PAGE_SIZE } from '@/components/paging'
 import { Alert, Button, EmptyState, Field, FilterBar, FilterItem, Input, Modal, PageHeader, Pager, Select, Spinner, StatusBadge, Textarea } from '@/components/ui'
 import { ROLE } from '@/features/auth/types'
@@ -21,6 +22,19 @@ import { formatDate, iso } from './format'
  * "Whole month", widens it back. The list is paged five at a time.
  */
 
+const SEARCH_DEBOUNCE_MS = 300
+
+const TEST_STATUS_TONES: Record<string, { dot: string; chip: string; border: string }> = {
+  Scheduled: { dot: 'bg-blue-500', chip: 'bg-blue-50 text-blue-800 ring-1 ring-inset ring-blue-100', border: 'border-l-blue-500' },
+  'In Progress': { dot: 'bg-amber-500', chip: 'bg-amber-50 text-amber-900 ring-1 ring-inset ring-amber-100', border: 'border-l-amber-500' },
+  Completed: { dot: 'bg-emerald-500', chip: 'bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-100', border: 'border-l-emerald-500' },
+  Cancelled: { dot: 'bg-ink-400', chip: 'bg-ink-100 text-ink-500 ring-1 ring-inset ring-ink-200', border: 'border-l-ink-400' },
+}
+
+function testStatusTone(status: string) {
+  return TEST_STATUS_TONES[status] ?? TEST_STATUS_TONES.Scheduled
+}
+
 export function TestsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const today = new Date()
@@ -30,13 +44,26 @@ export function TestsPage() {
   const last = new Date(year, monthIndex, 0)
   const status = searchParams.get('status') ?? ''
   const testType = searchParams.get('test_type') ?? ''
+  const costCode = searchParams.get('cost_code') ?? ''
   const day = searchParams.get('day') ?? ''
   const page = Math.max(1, Number(searchParams.get('page')) || 1)
   const canSchedule = useHasRole([ROLE.ADMIN, ROLE.COORDINATOR, ROLE.BU_LEAD, ROLE.TEST_MANAGER, ROLE.APPROVER])
 
-  const filters = { date_from: iso(first), date_to: iso(last), status, test_type: testType }
+  const filters = { date_from: iso(first), date_to: iso(last), status, test_type: testType, cost_code: costCode }
   const tests = useQuery({ queryKey: opsKeys.tests(filters), queryFn: () => opsApi.tests(filters) })
   const [scheduling, setScheduling] = useState(false)
+
+  // The cost code box is typed into, so it is debounced before it reaches the
+  // URL and the API — same pattern as the estate/cost-code list's search.
+  const [searchText, setSearchText] = useState(costCode)
+  const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const onSearchChange = useCallback((value: string) => {
+    setSearchText(value)
+    clearTimeout(debounce.current)
+    debounce.current = setTimeout(() => setParam('cost_code', value), SEARCH_DEBOUNCE_MS)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => () => clearTimeout(debounce.current), [])
 
   function setParams(changes: Record<string, string>) {
     const next = new URLSearchParams(searchParams)
@@ -70,6 +97,10 @@ export function TestsPage() {
   const pageCount = Math.max(1, Math.ceil(listed.length / PAGE_SIZE))
   const current = Math.min(page, pageCount)
   const pageItems = listed.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE)
+  const statusCounts = (tests.data ?? []).reduce<Record<string, number>>((counts, test) => {
+    counts[test.status] = (counts[test.status] ?? 0) + 1
+    return counts
+  }, {})
   const listTitle = day
     ? `Tests on ${new Date(`${day}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}`
     : 'Tests this month'
@@ -84,9 +115,27 @@ export function TestsPage() {
         {canSchedule && <Button onClick={() => setScheduling(true)}>Schedule a test</Button>}
       </PageHeader>
 
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {(['Scheduled', 'In Progress', 'Completed', 'Cancelled'] as const).map((statusName) => {
+          const tone = testStatusTone(statusName)
+          return (
+            <div key={statusName} className="rounded-card border border-ink-200/80 bg-white px-3.5 py-3 shadow-card">
+              <div className="flex items-center gap-2 text-xs font-semibold text-ink-500">
+                <span className={`h-2 w-2 rounded-full ${tone.dot}`} aria-hidden="true" />
+                {statusName}
+              </div>
+              <div className="mt-1 text-xl font-semibold tabular-nums text-ink-950">{statusCounts[statusName] ?? 0}</div>
+            </div>
+          )
+        })}
+      </div>
+
       <FilterBar
-        active={[status, testType].filter(Boolean).length}
-        onClear={() => setParams({ status: '', test_type: '', page: '' })}
+        active={[status, testType, costCode].filter(Boolean).length}
+        onClear={() => {
+          setSearchText('')
+          setParams({ status: '', test_type: '', cost_code: '', page: '' })
+        }}
         count={tests.data ? `${tests.data.length} test${tests.data.length === 1 ? '' : 's'} this month` : undefined}
       >
         <Button variant="secondary" size="sm" onClick={() => shiftMonth(-1)} aria-label="Previous month">
@@ -98,7 +147,18 @@ export function TestsPage() {
         <Button variant="secondary" size="sm" onClick={() => shiftMonth(1)} aria-label="Next month">
           Next
         </Button>
-        <FilterItem className="ml-2 w-44">
+        <FilterItem className="relative ml-2 w-48">
+          <IconSearch size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" />
+          <Input
+            className="pl-9"
+            type="search"
+            value={searchText}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="Search cost code"
+            aria-label="Search by cost code"
+          />
+        </FilterItem>
+        <FilterItem className="w-44">
           <Select value={status} onChange={(e) => setParam('status', e.target.value)} aria-label="Filter by status">
             <option value="">All statuses</option>
             {['Scheduled', 'In Progress', 'Completed', 'Cancelled'].map((s) => (
@@ -120,7 +180,7 @@ export function TestsPage() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <MonthGrid first={first} last={last} byDay={byDay} selected={day} onPick={pickDay} />
-        <section aria-label={listTitle} className="min-w-0">
+        <section aria-label={listTitle} className="max-h-[560px] min-w-0 overflow-y-auto pr-1">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">
               {listTitle}
@@ -144,9 +204,9 @@ export function TestsPage() {
           ) : (
             <ul className="space-y-2">
               {pageItems.map((t) => (
-                <li key={t.test_id} className="rounded-card border border-ink-200/80 bg-white px-4 py-3 shadow-card">
+                <li key={t.test_id} className={`rounded-card border border-ink-200/80 border-l-4 bg-white px-3.5 py-2.5 shadow-card ${testStatusTone(t.status).border}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Link to={`/tests/${t.test_id}`} className="font-medium text-brand-700 hover:underline">
+                    <Link to={`/tests/${t.test_id}`} className="text-sm font-medium text-brand-700 hover:underline">
                       {t.test_type} · {t.cost_code_label}
                     </Link>
                     <StatusBadge status={t.status} />
@@ -190,8 +250,22 @@ function MonthGrid({
   const todayIso = iso(new Date())
 
   return (
-    <div className="overflow-hidden rounded-card border border-ink-200/80 bg-white shadow-card" role="grid" aria-label="Calendar">
-      <div className="grid grid-cols-7 border-b border-ink-100 bg-ink-50/60 text-center text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">
+    <div className="max-h-[560px] overflow-auto rounded-card border border-ink-200/80 bg-white shadow-card" role="grid" aria-label="Calendar">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-ink-100 bg-gradient-to-r from-brand-50 via-white to-accent-400/10 px-3.5 py-2.5">
+        <div>
+          <p className="text-sm font-semibold text-ink-950">{first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</p>
+          <p className="mt-0.5 text-xs text-ink-500">Select a day to focus the test list</p>
+        </div>
+        <div className="flex flex-wrap justify-end gap-x-3 gap-y-1 text-[10px] font-medium text-ink-500">
+          {Object.entries(TEST_STATUS_TONES).map(([status, tone]) => (
+            <span key={status} className="inline-flex items-center gap-1">
+              <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} aria-hidden="true" />
+              {status}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="sticky top-[62px] z-10 grid grid-cols-7 border-b border-ink-100 bg-ink-50/95 text-center text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-500 backdrop-blur">
         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
           <div key={d} className="py-2">
             {d}
@@ -212,13 +286,13 @@ function MonthGrid({
               onClick={date ? () => onPick(key) : undefined}
               onKeyDown={date ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(key) } } : undefined}
               tabIndex={date ? 0 : undefined}
-              className={`min-h-20 border-b border-r border-ink-100 p-1.5 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-400 ${date ? 'cursor-pointer hover:bg-ink-50' : 'bg-ink-50/40'} ${
-                isSelected ? 'bg-brand-50 ring-2 ring-inset ring-brand-400' : key === todayIso ? 'bg-brand-50/50' : ''
+              className={`min-h-20 border-b border-r border-ink-100 p-1.5 text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-400 ${date ? 'cursor-pointer hover:bg-brand-50/40' : 'bg-ink-50/40'} ${
+                isSelected ? 'bg-brand-50 ring-2 ring-inset ring-brand-500' : key === todayIso ? 'bg-blue-50/50' : ''
               }`}
             >
               {date && (
                 <div className={`mb-1 flex items-center justify-between tabular-nums ${key === todayIso || isSelected ? 'font-semibold text-brand-700' : 'text-ink-500'}`}>
-                  <span>{date.getDate()}</span>
+                  <span className={key === todayIso ? 'flex h-6 min-w-6 items-center justify-center rounded-full bg-brand-600 px-1.5 text-white' : ''}>{date.getDate()}</span>
                   {items.length > 0 && (
                     <span className="rounded-full bg-ink-100 px-1.5 text-[10px] font-semibold text-ink-600" title={`${items.length} test${items.length === 1 ? '' : 's'}`}>
                       {items.length}
@@ -231,12 +305,11 @@ function MonthGrid({
                   key={t.test_id}
                   to={`/tests/${t.test_id}`}
                   onClick={(e) => e.stopPropagation()}
-                  className={`mb-0.5 block truncate rounded px-1.5 py-0.5 text-[11px] font-medium ${
-                    t.status === 'Cancelled' ? 'bg-ink-100 text-ink-500 line-through' : t.status === 'Completed' ? 'bg-emerald-50 text-emerald-800' : 'bg-brand-100 text-brand-800'
-                  }`}
+                  className={`mb-0.5 flex items-center gap-1 truncate rounded px-1 py-0.5 text-[10px] font-semibold ${testStatusTone(t.status).chip} ${t.status === 'Cancelled' ? 'line-through' : ''}`}
                   title={`${t.test_type} · ${t.cost_code_label}`}
                 >
-                  {t.cost_code_label}
+                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${testStatusTone(t.status).dot}`} aria-hidden="true" />
+                  <span className="truncate">{t.cost_code_label}</span>
                 </Link>
               ))}
               {items.length > 3 && <div className="text-[11px] text-ink-500">+{items.length - 3} more</div>}

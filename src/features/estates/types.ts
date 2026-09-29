@@ -26,6 +26,13 @@ export interface Estate {
   status_rollup: Record<BcpStatus, number>
 }
 
+export interface ProcessSummary {
+  process_id: number
+  process_name: string
+  cost_code_count: number
+  status_rollup: Record<BcpStatus, number>
+}
+
 export interface CostCode {
   cost_code_id: number
   cost_code: string

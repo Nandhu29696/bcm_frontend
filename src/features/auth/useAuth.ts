@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback } from 'react'
 
 import { authApi } from './api'
+import { ROLE } from './types'
 import type { CurrentUser, RoleCode } from './types'
 
 export const CURRENT_USER_KEY = ['auth', 'me'] as const
@@ -41,9 +42,11 @@ export function useAuth() {
   }, [queryClient])
 
   const completeSignIn = useCallback(async () => {
-    // The auth cookies are already set by the response that got us here; all
-    // that is left is to let the app know a session now exists.
+    // The auth cookies are already set by the response that got us here.
+    // Fetch (not just invalidate) so the caller has the user in hand
+    // immediately, to decide where to land them (see postLoginPath).
     await queryClient.invalidateQueries({ queryKey: CURRENT_USER_KEY })
+    return queryClient.fetchQuery({ queryKey: CURRENT_USER_KEY, queryFn: authApi.me })
   }, [queryClient])
 
   return {
@@ -69,4 +72,16 @@ export function hasAnyRole(
 export function useHasRole(roles: readonly RoleCode[] | readonly string[]): boolean {
   const { data: user } = useCurrentUser()
   return hasAnyRole(user, roles)
+}
+
+/**
+ * Where a user lands right after signing in. An explicit `from` (the route
+ * they were bounced out of before login) always wins — otherwise a Super
+ * Admin's landing screen is the Dashboard, and everyone else's is Estates.
+ */
+export function postLoginPath(user: CurrentUser | null | undefined, from?: string): string {
+  if (from) return from
+  if (hasAnyRole(user, [ROLE.ADMIN])) return '/dashboard'
+  if (hasAnyRole(user, [ROLE.BU_LEAD, ROLE.COORDINATOR])) return '/my-plans'
+  return '/estates'
 }

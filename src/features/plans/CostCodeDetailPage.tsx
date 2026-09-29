@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 
 import { toApiError } from '@/api/client'
 import {
@@ -14,7 +14,7 @@ import {
   StatusBadge,
   Textarea,
 } from '@/components/ui'
-import { IconChevronRight, IconEdit } from '@/components/icons'
+import { IconEdit } from '@/components/icons'
 import { estateKeys } from '@/features/estates/api'
 import { CostCodeOperations } from '@/features/operations/CostCodeOperations'
 import type { NamedRef } from '@/features/estates/types'
@@ -47,7 +47,12 @@ export function CostCodeDetailPage() {
   const costCodeId = Number(param)
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
-  const canAuthor = useHasRole([ROLE.ADMIN, ROLE.COORDINATOR])
+  // Editing the cost code, starting its first version and copying a version
+  // are all administrator-only now — a coordinator's assignment authorises
+  // answering the questionnaire, exemptions and submission, not this (see
+  // apps/plans/access.py's caller_may_edit_content on the backend).
+  const canEditContent = useHasRole([ROLE.ADMIN])
+  const canAssignCoordinator = useHasRole([ROLE.ADMIN])
 
   const costCode = useQuery({
     queryKey: planKeys.costCode(costCodeId),
@@ -125,24 +130,6 @@ export function CostCodeDetailPage() {
     <>
       <PageHeader
         title={detail.cost_code}
-        eyebrow={
-          <span className="inline-flex items-center gap-1.5">
-            <Link to="/estates" className="text-brand-700 hover:underline">
-              Estates
-            </Link>
-            {detail.estate && (
-              <>
-                <IconChevronRight size={12} className="text-ink-400" />
-                <Link
-                  to={`/estates/${detail.estate.id}/cost-codes`}
-                  className="text-brand-700 hover:underline"
-                >
-                  {detail.estate.name}
-                </Link>
-              </>
-            )}
-          </span>
-        }
         subtitle={
           detail.process ? (
             <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -185,10 +172,10 @@ export function CostCodeDetailPage() {
       <section aria-label="Cost code details" className="mb-6 rounded-card border border-ink-200/80 bg-white px-4 py-3 shadow-card animate-fade-up">
         <div className="mb-2 flex items-center justify-between gap-3">
           <div className="flex items-baseline gap-2">
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Details</h2>
+            <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand-800">Details</h2>
             <span className="text-xs text-ink-400">Scope and ownership</span>
           </div>
-          {canAuthor && (
+          {canEditContent && (
             <button
               type="button"
               className="inline-flex h-8 items-center gap-1.5 rounded-control border border-transparent px-2 text-xs font-medium text-ink-500 transition-colors hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
@@ -221,12 +208,12 @@ export function CostCodeDetailPage() {
             <EmptyState
               title="No plan has been started for this cost code"
               description={
-                canAuthor
+                canEditContent
                   ? 'Starting one creates version 1 in "Not Started" and lets you assign a coordinator.'
-                  : 'A coordinator or administrator can start one.'
+                  : 'An administrator can start one.'
               }
             >
-              {canAuthor && (
+              {canEditContent && (
                 <Button
                   onClick={() => createFirstVersion.mutate()}
                   disabled={createFirstVersion.isPending || detail.process === null}
@@ -238,7 +225,8 @@ export function CostCodeDetailPage() {
           ) : (
             <VersionList
               versions={versionList}
-              canAuthor={canAuthor}
+              canAuthor={canAssignCoordinator}
+              canEditContent={canEditContent}
               onAssign={(version) => openPanel('assign', version)}
               onHistory={(version) => openPanel('history', version)}
               onCopy={(version) => openPanel('copy', version)}
@@ -276,8 +264,8 @@ export function CostCodeDetailPage() {
 function Detail({ label, value }: { label: string; value: NamedRef | null }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[11px] font-medium uppercase tracking-[0.06em] text-ink-400">{label}</dt>
-      <dd className="mt-0.5 break-words text-sm font-medium text-ink-900">
+      <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-brand-800">{label}</dt>
+      <dd className="mt-0.5 break-words text-sm font-normal text-ink-900">
         {value ? value.name : <span className="font-normal text-ink-400">—</span>}
       </dd>
     </div>

@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 
 import { toApiError } from '@/api/client'
@@ -6,7 +8,7 @@ import { pageOf } from '@/components/paging'
 import { Alert, EmptyState, PageHeader, Pager, Select, StatusBadge, TableSkeleton } from '@/components/ui'
 import { formatDateTime } from '@/features/plans/format'
 
-import { reviewApi, reviewKeys } from './api'
+import { reviewApi, reviewKeys, type QueueRow } from './api'
 import { ReviewActions } from './ReviewActions'
 
 /**
@@ -21,6 +23,7 @@ import { ReviewActions } from './ReviewActions'
 export function ReviewQueuePage() {
   const queue = useQuery({ queryKey: reviewKeys.queue, queryFn: reviewApi.queue })
   const [searchParams, setSearchParams] = useSearchParams()
+  const [openActionId, setOpenActionId] = useState<number | null>(null)
   const show = searchParams.get('show') === 'mine' ? 'mine' : 'all'
   const page = Math.max(1, Number(searchParams.get('page')) || 1)
 
@@ -71,7 +74,7 @@ export function ReviewQueuePage() {
       ) : (
         <div className="overflow-hidden rounded-card border border-ink-200/80 bg-white shadow-card">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ink-100 px-4 py-2.5">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">
+            <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand-800">
               Queue <span className="ml-1 rounded-full bg-ink-100 px-2 py-0.5 tabular-nums text-ink-600">{rows.length}</span>
             </span>
             <div className="w-44">
@@ -88,12 +91,12 @@ export function ReviewQueuePage() {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Plan</th>
-                    <th>Version</th>
-                    <th>Coordinators</th>
-                    <th>BU lead</th>
-                    <th>Waiting</th>
-                    <th className="text-right">Actions</th>
+                    <th className="text-brand-800">Plan</th>
+                    <th className="text-brand-800">Version</th>
+                    <th className="text-brand-800">Coordinators</th>
+                    <th className="text-brand-800">BU lead</th>
+                    <th className="text-brand-800">Waiting</th>
+                    <th className="sticky right-0 z-20 bg-ink-50 text-right text-brand-800 shadow-[-4px_0_8px_-6px_oklch(0.2_0.05_270/0.45)]">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -132,16 +135,8 @@ export function ReviewQueuePage() {
                           </span>
                           <span className="block text-xs text-ink-500">{formatDateTime(row.submitted_at)}</span>
                         </td>
-                        <td className="whitespace-nowrap">
-                          <div className="flex justify-end gap-2">
-                            <Link
-                              to={`/plan-versions/${row.plan_version_id}`}
-                              className="inline-flex h-8 items-center rounded-control border border-ink-200 bg-white px-3 text-xs font-medium text-ink-800 shadow-card hover:bg-ink-50"
-                            >
-                              Open plan
-                            </Link>
-                            {row.can_review && <ReviewActions version={row} compact />}
-                          </div>
+                        <td className="sticky right-0 z-10 whitespace-nowrap bg-white text-right shadow-[-4px_0_8px_-6px_oklch(0.2_0.05_270/0.45)]">
+                          <ActionMenu row={row} open={openActionId === row.plan_version_id} onToggle={() => setOpenActionId((current) => current === row.plan_version_id ? null : row.plan_version_id)} onClose={() => setOpenActionId(null)} />
                         </td>
                       </tr>
                     )
@@ -153,6 +148,74 @@ export function ReviewQueuePage() {
           <Pager page={page} total={rows.length} onPage={(n) => setParam('page', String(n))} label="Review queue pages" />
         </div>
       )}
+    </>
+  )
+}
+
+function ActionMenu({ row, open, onToggle, onClose }: { row: QueueRow; open: boolean; onToggle: () => void; onClose: () => void }) {
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function closeOnOutside(event: MouseEvent) {
+      const target = event.target as Node
+      if (!buttonRef.current?.contains(target) && !menuRef.current?.contains(target)) onClose()
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose()
+    }
+    document.addEventListener('mousedown', closeOnOutside)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutside)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [open, onClose])
+
+  const menu = open && buttonRef.current ? (() => {
+    const bounds = buttonRef.current.getBoundingClientRect()
+    return createPortal(
+      <div
+        ref={menuRef}
+        role="menu"
+        aria-label="Review actions"
+        className="fixed z-[100] flex min-w-40 -translate-y-full origin-bottom-right flex-col gap-1 rounded-card border border-ink-200 bg-white p-1.5 shadow-raised"
+        style={{ left: Math.max(8, bounds.right - 160), top: bounds.top - 8 }}
+      >
+        <Link
+          to={`/plan-versions/${row.plan_version_id}`}
+          role="menuitem"
+          className="rounded-control px-3 py-2 text-xs font-medium text-ink-800 outline-none hover:bg-ink-50 focus-visible:bg-ink-50 focus-visible:ring-2 focus-visible:ring-brand-300"
+          onClick={onClose}
+        >
+          Open plan
+        </Link>
+        {row.can_review && (
+          <div className="flex flex-col gap-1 [&>button]:w-full">
+            <ReviewActions version={row} compact />
+          </div>
+        )}
+      </div>,
+      document.body,
+    )
+  })() : null
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-control text-lg font-bold leading-none tracking-[0.15em] text-ink-500 outline-none hover:bg-brand-50 hover:text-brand-700 focus-visible:bg-brand-50 focus-visible:ring-2 focus-visible:ring-brand-300"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        aria-label="Open review actions"
+        title="Open review actions"
+        onClick={onToggle}
+      >
+        ...
+      </button>
+      {menu}
     </>
   )
 }
@@ -179,7 +242,7 @@ function Figure({
   const tones = { brand: 'text-brand-700', amber: 'text-amber-700', red: 'text-red-700', ink: 'text-ink-700' }
   return (
     <div className="rounded-card border border-ink-200/80 bg-white px-4 py-3 shadow-card">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">{label}</div>
+      <div className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand-800">{label}</div>
       <div className={`mt-0.5 text-2xl font-semibold tabular-nums ${tones[tone]}`}>
         {value}
         {unit && <span className="ml-1 text-sm font-normal text-ink-500">{unit}</span>}

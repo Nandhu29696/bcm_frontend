@@ -94,8 +94,17 @@ export function CrisisEventPage() {
           <dl className="grid gap-x-6 gap-y-2.5 text-sm sm:grid-cols-[auto_1fr_auto_1fr]">
             <dt className="text-ink-500">Declared by</dt>
             <dd className="font-medium text-ink-900">{e.created_by_name || '—'}</dd>
+            <dt className="text-ink-500">Start date</dt>
+            <dd className="font-medium text-ink-900">
+              {formatDate(e.event_date)}
+              {e.event_time ? ` at ${e.event_time.slice(0, 5)}` : ''}
+            </dd>
             <dt className="text-ink-500">Declared at</dt>
             <dd className="font-medium text-ink-900">{formatDateTime(e.created_at)}</dd>
+            <dt className="text-ink-500">End date</dt>
+            <dd className="font-medium text-ink-900">
+              {e.closed_at ? formatDateTime(e.closed_at) : <span className="text-ink-400">Still open</span>}
+            </dd>
             <dt className="text-ink-500">Comments</dt>
             <dd className="whitespace-pre-wrap text-ink-900 sm:col-span-3">{e.comments || <span className="text-ink-400">—</span>}</dd>
           </dl>

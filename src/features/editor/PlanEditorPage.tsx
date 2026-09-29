@@ -5,6 +5,8 @@ import { Link, useBlocker, useParams, useSearchParams } from 'react-router-dom'
 import { toApiError } from '@/api/client'
 import { IconCheck, IconComment } from '@/components/icons'
 import { Alert, Badge, Button, PageHeader, Spinner, StatusBadge } from '@/components/ui'
+import { ROLE } from '@/features/auth/types'
+import { useHasRole } from '@/features/auth/useAuth'
 import { planKeys, plansApi } from '@/features/plans/api'
 import type { PlanVersion } from '@/features/plans/types'
 import { ReviewActions } from '@/features/review/ReviewActions'
@@ -27,6 +29,28 @@ import { computeVisibility, wantsEvidence } from './visibility'
  * which is also the context submission and the generated document read.
  */
 const CONTEXT = 'BCP'
+
+const SECTION_DESCRIPTIONS: Record<string, { title: string; description: string }> = {
+  MAO: {
+    title: 'MAO - Maximum Acceptable Outage',
+    description:
+      'Maximum Acceptable Outage (MAO) describes the time period that could be endured as a result of disruption before being deemed unacceptable or before irrevocable damage is caused.',
+  },
+  RTO: {
+    title: 'RTO - Recovery Time Objective',
+    description: 'The maximum acceptable downtime to recommence the essential services after a disruption.',
+  },
+  MBCO: {
+    title: 'MBCO - Minimum Business Continuity Objective',
+    description:
+      'Minimum Business Continuity Objective (MBCO) is the minimum level of services and/or products that is acceptable to the organization to achieve its business objectives during an incident, emergency or disaster.',
+  },
+  RPO: {
+    title: 'RPO - Recovery Point Objective',
+    description:
+      'The recovery point objective (RPO) describes the amount of time that can pass during an event before data loss exceeds that tolerance.',
+  },
+}
 
 /**
  * Journey step 5 — the BCP plan editor.
@@ -91,6 +115,13 @@ function Editor({ questionnaire, version }: { questionnaire: Questionnaire; vers
   )
 
   const readOnly = !questionnaire.editable || !questionnaire.can_author
+  // The risk register, BIA sub-forms and Plan section are administrator-only
+  // to edit now (`access.caller_may_edit_content`) — a coordinator's
+  // assignment authorises answering the questionnaire (above), not this.
+  // Deliberately a plain role check, not a server flag: the rule itself is
+  // just "is this an admin", with no per-object claim to resolve.
+  const canEditContent = useHasRole([ROLE.ADMIN])
+  const contentReadOnly = !questionnaire.editable || !canEditContent
   const allQuestions = useMemo(
     () => questionnaire.sections.flatMap((s) => s.questions),
     [questionnaire],
@@ -162,13 +193,15 @@ function Editor({ questionnaire, version }: { questionnaire: Questionnaire; vers
   // One card per question, wherever it is shown — a questionnaire tab or the
   // BIA part — so autosave, comments and retry behave the same in both.
   function renderQuestion(question: EditorQuestion) {
+    const isVisible = visibility.get(question.question_id) ?? false
     return (
       <QuestionCard
         key={question.question_id}
         question={question}
         answer={answers.get(question.question_id) ?? null}
         saveState={states.get(question.question_id)}
-        readOnly={readOnly}
+        readOnly={readOnly || !isVisible}
+        disabledByDependency={!isVisible}
         commentCount={commentCounts.get(question.question_id) ?? 0}
         onChange={(answer, immediate) => setAnswer(question.question_id, answer, immediate)}
         onRetry={() => retry(question.question_id)}
@@ -306,8 +339,20 @@ function Editor({ questionnaire, version }: { questionnaire: Questionnaire; vers
               aria-label={activeSection.section_name}
               className="space-y-4"
             >
+              {(() => {
+                const definition = SECTION_DESCRIPTIONS[activeSection.section_name.trim().toUpperCase()]
+                return definition ? (
+                  <div className="rounded-control border border-brand-100 bg-brand-50/50 px-4 py-3 text-sm text-ink-700">
+                    <h2 className="font-semibold text-ink-900">{definition.title}</h2>
+                    <p className="mt-1 leading-6">{definition.description}</p>
+                  </div>
+                ) : null
+              })()}
               {activeSection.questions.map((question) =>
-                (visibility.get(question.question_id) ?? false) ? renderQuestion(question) : null,
+                activeSection.section_name === 'Basic Questions' ||
+                (visibility.get(question.question_id) ?? false)
+                  ? renderQuestion(question)
+                  : null,
               )}
             </section>
           )}
@@ -324,7 +369,7 @@ function Editor({ questionnaire, version }: { questionnaire: Questionnaire; vers
         <section id="part-bia" role="tabpanel" aria-label="BIA">
           <BiaPart
             versionId={questionnaire.plan_version_id}
-            readOnly={readOnly}
+            readOnly={contentReadOnly}
             questions={biaQuestions}
             renderQuestion={renderQuestion}
           />
@@ -333,13 +378,13 @@ function Editor({ questionnaire, version }: { questionnaire: Questionnaire; vers
 
       {part === 'ra' && (
         <section id="part-ra" role="tabpanel" aria-label="RA">
-          <RiskRegister versionId={questionnaire.plan_version_id} readOnly={readOnly} />
+          <RiskRegister versionId={questionnaire.plan_version_id} readOnly={contentReadOnly} />
         </section>
       )}
 
       {part === 'plan' && (
         <section id="part-plan" role="tabpanel" aria-label="Plan">
-          <PlanPart versionId={questionnaire.plan_version_id} readOnly={readOnly} />
+          <PlanPart versionId={questionnaire.plan_version_id} readOnly={contentReadOnly} />
         </section>
       )}
 
@@ -421,6 +466,7 @@ function QuestionCard({
   answer,
   saveState,
   readOnly,
+  disabledByDependency,
   commentCount,
   onChange,
   onRetry,
@@ -432,6 +478,7 @@ function QuestionCard({
   answer: EditorQuestion['answer']
   saveState?: QuestionSaveState
   readOnly: boolean
+  disabledByDependency: boolean
   commentCount: number
   onChange: (answer: EditorQuestion['answer'], immediate: boolean) => void
   onRetry: () => void
@@ -448,7 +495,8 @@ function QuestionCard({
     <button
       type="button"
       onClick={onComments}
-      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs transition-colors ${
+      disabled={disabledByDependency}
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
         commentCount ? 'bg-brand-50 text-brand-700 hover:bg-brand-100' : 'text-ink-400 hover:bg-ink-100 hover:text-ink-900'
       }`}
       aria-label={`Comments on ${question.question_code}`}
@@ -461,11 +509,17 @@ function QuestionCard({
   return (
     <article
       aria-labelledby={`q-${question.question_id}-label`}
-      className="rounded-card border border-ink-200/80 bg-white px-5 py-3.5 shadow-card transition-shadow focus-within:border-brand-300 focus-within:shadow-raised animate-fade-up"
+      aria-disabled={disabledByDependency || undefined}
+      className={`rounded-card border px-5 py-3.5 shadow-card transition-shadow focus-within:border-brand-300 focus-within:shadow-raised animate-fade-up ${
+        disabledByDependency ? 'border-ink-200 bg-ink-50/80' : 'border-ink-200/80 bg-white'
+      }`}
     >
       <div className={`gap-x-6 gap-y-3 ${inline ? 'md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-center' : 'space-y-3'}`}>
         <div className="min-w-0">
-          <p id={`q-${question.question_id}-label`} className="text-[15px] font-medium leading-snug text-ink-950">
+          <p id={`q-${question.question_id}-label`} className={`text-[15px] font-medium leading-snug ${disabledByDependency ? 'text-ink-500' : 'text-ink-950'}`}>
+            <span className="mr-1.5 inline-block rounded bg-ink-100 px-1.5 py-0.5 align-middle font-mono text-[11px] font-semibold tracking-tight text-ink-500">
+              Q{question.question_number}
+            </span>
             {question.question_text}
             {question.required && <span className="ml-1 text-red-500" title="Required">*</span>}
           </p>

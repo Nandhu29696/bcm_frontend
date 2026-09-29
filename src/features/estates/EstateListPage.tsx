@@ -70,10 +70,22 @@ export function EstateListPage() {
       />
 
       {/* Portfolio strip */}
-      <div className="mb-8 grid gap-3 sm:grid-cols-3 animate-fade-up">
-        <Stat label="Approved plans" value={totals.approved} tone="text-emerald-700" />
-        <Stat label="Awaiting review" value={totals.review} tone="text-amber-700" />
+      <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 animate-fade-up">
+        <Stat label="Cost codes" value={totals.costCodes} />
+        <Stat
+          label="Approved plans"
+          value={totals.approved}
+          sub={`${totals.costCodes ? Math.round((100 * totals.approved) / totals.costCodes) : 0}% of cost codes`}
+          tone="text-emerald-700"
+        />
+        <Stat
+          label="In flight"
+          value={totals.inFlight}
+          sub="WIP, in review or rework"
+          tone="text-amber-700"
+        />
         <Stat label="Not started" value={totals.notStarted} tone="text-ink-700" />
+        <Stat label="Exempted" value={totals.exempted} tone="text-violet-700" />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -85,11 +97,12 @@ export function EstateListPage() {
   )
 }
 
-function Stat({ label, value, tone }: { label: string; value: number; tone: string }) {
+function Stat({ label, value, sub, tone = 'text-brand-700' }: { label: string; value: number; sub?: string; tone?: string }) {
   return (
     <div className="rounded-card border border-ink-200/80 bg-white px-5 py-4 shadow-card">
-      <div className="text-xs font-medium uppercase tracking-wide text-ink-500">{label}</div>
+      <div className="text-xs font-bold uppercase tracking-wide text-brand-800">{label}</div>
       <div className={`mt-1 text-2xl font-semibold tabular-nums ${tone}`}>{value}</div>
+      {sub && <div className="truncate text-xs text-ink-500">{sub}</div>}
     </div>
   )
 }
@@ -102,7 +115,7 @@ function EstateCard({ estate, index }: { estate: Estate; index: number }) {
 
   return (
     <Link
-      to={`/estates/${estate.estate_id}/cost-codes`}
+      to={`/estates/${estate.estate_id}/processes`}
       style={{ animationDelay: `${index * 40}ms` }}
       className="group block rounded-card border border-ink-200/80 bg-white p-5 shadow-card transition-all hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-raised animate-fade-up"
     >
@@ -112,7 +125,7 @@ function EstateCard({ estate, index }: { estate: Estate; index: number }) {
             <IconBuildings size={20} />
           </span>
           <div>
-            <h2 className="text-base font-semibold text-ink-950">{estate.estate_name}</h2>
+            <h2 className="text-base font-semibold text-brand-950">{estate.estate_name}</h2>
             <p className="text-xs text-ink-500">
               {total} cost code{total === 1 ? '' : 's'}
             </p>
@@ -172,9 +185,14 @@ function summarise(estates: Estate[]) {
     (acc, e) => ({
       costCodes: acc.costCodes + e.cost_code_count,
       approved: acc.approved + e.status_rollup.Approved,
-      review: acc.review + e.status_rollup['Pending BU Lead Review'],
+      inFlight:
+        acc.inFlight +
+        e.status_rollup['Work in Progress'] +
+        e.status_rollup['Pending BU Lead Review'] +
+        e.status_rollup.Rework,
       notStarted: acc.notStarted + e.status_rollup['Not Started'],
+      exempted: acc.exempted + e.status_rollup.Exempted,
     }),
-    { costCodes: 0, approved: 0, review: 0, notStarted: 0 },
+    { costCodes: 0, approved: 0, inFlight: 0, notStarted: 0, exempted: 0 },
   )
 }

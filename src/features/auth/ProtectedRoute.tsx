@@ -1,16 +1,18 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 
-import { hasAnyRole, useCurrentUser } from './useAuth'
+import { hasAnyRole, postLoginPath, useCurrentUser } from './useAuth'
 import type { RoleCode } from './types'
 
 interface ProtectedRouteProps {
   children: ReactNode
   /** When given, the user must hold at least one of these roles. */
   roles?: readonly RoleCode[] | readonly string[]
+  /** When given, users with any of these roles cannot access the page. */
+  denyRoles?: readonly RoleCode[] | readonly string[]
 }
 
-export function ProtectedRoute({ children, roles }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, roles, denyRoles }: ProtectedRouteProps) {
   const location = useLocation()
   const { data: user, isPending, isError } = useCurrentUser()
 
@@ -30,7 +32,7 @@ export function ProtectedRoute({ children, roles }: ProtectedRouteProps) {
     return <Navigate to="/pending" replace />
   }
 
-  if (roles && !hasAnyRole(user, roles)) {
+  if ((roles && !hasAnyRole(user, roles)) || (denyRoles && hasAnyRole(user, denyRoles))) {
     return (
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-6">
         <h2 className="text-base font-semibold text-amber-900">
@@ -45,6 +47,16 @@ export function ProtectedRoute({ children, roles }: ProtectedRouteProps) {
   }
 
   return <>{children}</>
+}
+
+/**
+ * The `/` index route: by the time this renders, `ProtectedRoute` has already
+ * confirmed a signed-in, non-pending user, so this just picks their landing
+ * screen (see `postLoginPath`).
+ */
+export function IndexRedirect() {
+  const { data: user } = useCurrentUser()
+  return <Navigate to={postLoginPath(user)} replace />
 }
 
 /**

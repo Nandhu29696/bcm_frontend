@@ -12,6 +12,9 @@ export interface StatusRow {
 export interface Dashboard {
   generated_at: string
   estate_id: number | null
+  /** True for a BU lead/approver with no estate-wide role: figures below are
+   * cut to the cost codes they lead, not their whole estate. */
+  narrowed_to_own: boolean
   totals: {
     cost_codes: number
     by_status: Record<string, number>
@@ -24,6 +27,8 @@ export interface Dashboard {
   status_by_estate: StatusRow[]
   status_by_region: StatusRow[]
   status_by_lob: StatusRow[]
+  /** Every in-scope cost code individually, capped at 500 rows server-side. */
+  cost_codes: { cost_code_id: number; cost_code: string; estate_name: string; status: string }[]
   completion: { open_versions: number; sections_total: number; sections_completed: number; percent: number | null }
   risk: {
     total: number
@@ -84,7 +89,7 @@ export interface ReportRequest {
   report_type: string
   report_type_label: string
   report_format: string
-  parameters: { estate_id?: number }
+  parameters: { estate_id?: number; cost_code?: string; date_from?: string; date_to?: string }
   schedule: string
   active_flag: boolean
   next_run_at: string | null
@@ -118,14 +123,29 @@ export const insightsApi = {
 
   reportTypes: async (): Promise<ReportTypes> => (await api.get('/reports/types/')).data,
   reportRequests: async (): Promise<ReportRequest[]> => (await api.get('/reports/requests/')).data,
-  requestReport: async (body: { report_type: string; report_format: string; schedule: string; estate_id?: number | null }): Promise<ReportRequest> =>
-    (await api.post('/reports/requests/', body)).data,
+  requestReport: async (body: {
+    report_type: string
+    report_format: string
+    schedule: string
+    estate_id?: number | null
+    cost_code?: string
+    date_from?: string
+    date_to?: string
+  }): Promise<ReportRequest> => (await api.post('/reports/requests/', body)).data,
   runReport: async (id: number): Promise<ReportRequest> => (await api.post(`/reports/requests/${id}/run/`)).data,
   stopReport: async (id: number): Promise<ReportRequest> => (await api.post(`/reports/requests/${id}/stop/`)).data,
-  estateDetailFile: async (estateId: number | null, fileFormat: string): Promise<Blob> =>
+  estateDetailFile: async (
+    estateId: number | null,
+    fileFormat: string,
+    costCode?: string,
+  ): Promise<Blob> =>
     (
       await api.get('/reports/estate-detail/', {
-        params: { file_format: fileFormat, ...(estateId ? { estate: estateId } : {}) },
+        params: {
+          file_format: fileFormat,
+          ...(estateId ? { estate: estateId } : {}),
+          ...(costCode ? { cost_code: costCode } : {}),
+        },
         responseType: 'blob',
       })
     ).data,

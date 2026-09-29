@@ -45,6 +45,8 @@ export interface PlanVersion {
   cost_code_id: number
   cost_code: string
   process_name: string
+  subprocess_name: string
+  region_name: string
   estate_name: string
   bu_lead_name: string
   version_number: number
@@ -68,6 +70,21 @@ export interface PlanVersion {
 export interface PlanVersionList {
   plan_id: number | null
   versions: PlanVersion[]
+}
+
+export interface MyPlan {
+  plan_version_id: number
+  plan_id: number
+  cost_code_id: number
+  cost_code: string
+  process_name: string
+  subprocess_name: string
+  region_name: string
+  estate_name: string
+  bu_lead_name: string
+  version_number: number
+  status: BcpStatus
+  updated_at: string
 }
 
 export interface HistoryEntry {

@@ -23,8 +23,9 @@ import { useAuth } from '@/features/auth/useAuth'
 import { NotificationBell } from '@/features/notifications/NotificationBell'
 
 const NAV = [
-  { to: '/dashboard', label: 'Dashboard', icon: IconChart },
-  { to: '/estates', label: 'Estates', icon: IconBuildings },
+  { to: '/dashboard', label: 'Dashboard', icon: IconChart, hideForOwnedRoles: true },
+  { to: '/estates', label: 'Estates', icon: IconBuildings, hideForOwnedRoles: true },
+  { to: '/my-plans', label: 'My plans', icon: IconClipboard, ownedRolesOnly: true },
   { to: '/reviews', label: 'Reviews', icon: IconInbox },
   { to: '/tests', label: 'Tests', icon: IconClipboard },
   { to: '/crisis', label: 'Crisis Management', icon: IconAlert },
@@ -35,6 +36,7 @@ const NAV = [
 const TITLES: [string, string][] = [
   ['/dashboard', 'Dashboard'],
   ['/estates', 'Estates'],
+  ['/my-plans', 'My plans'],
   ['/cost-codes', 'Cost code'],
   ['/plan-versions', 'Plan'],
   ['/reviews', 'Reviews'],
@@ -87,7 +89,7 @@ export function AppLayout() {
         <nav className="flex-1 space-y-0.5 px-3 pt-2" aria-label="Main">
           <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/35">Workspace</p>
           {NAV.map((item) => (
-            <NavItem key={item.to} {...item} onNavigate={() => setOpen(false)} />
+            <RoleNavItem key={item.to} {...item} onNavigate={() => setOpen(false)} />
           ))}
           {/* Mirrors the server-side role check. Hiding the link is a
               convenience; the API enforces it regardless. */}
@@ -228,6 +230,17 @@ function NavItem({
       {label}
     </NavLink>
   )
+}
+
+function RoleNavItem({
+  hideForOwnedRoles,
+  ownedRolesOnly,
+  ...item
+}: (typeof NAV)[number] & { onNavigate: () => void }) {
+  const { user } = useAuth()
+  const ownsPlans = user?.role_codes.some((role) => role === ROLE.BU_LEAD || role === ROLE.COORDINATOR) ?? false
+  if ((hideForOwnedRoles && ownsPlans) || (ownedRolesOnly && !ownsPlans)) return null
+  return <NavItem {...item} />
 }
 
 export function Avatar({ name, src, tone = 'dark', size = 'sm' }: { name: string; src?: string; tone?: 'dark' | 'light'; size?: 'sm' | 'lg' }) {

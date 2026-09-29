@@ -10,9 +10,23 @@ import type {
   MasterData,
   PlanVersion,
   PlanVersionList,
+  MyPlan,
 } from './types'
 
 export const plansApi = {
+  async myPlans(
+    page: number,
+    filters: Record<string, string[]> = {},
+  ): Promise<Paginated<MyPlan>> {
+    const params = new URLSearchParams({ page: String(page), page_size: '5' })
+    for (const [key, values] of Object.entries(filters)) {
+      for (const value of values) if (value) params.append(key, value)
+    }
+    const { data } = await api.get<Paginated<MyPlan>>('/my-plans/', {
+      params,
+    })
+    return data
+  },
   async costCode(costCodeId: number): Promise<CostCodeDetail> {
     const { data } = await api.get<CostCodeDetail>(`/cost-codes/${costCodeId}/`)
     return data
@@ -93,6 +107,7 @@ export const plansApi = {
 }
 
 export const planKeys = {
+  myPlans: (page: number, filters: Record<string, string[]> = {}) => ['my-plans', page, filters] as const,
   costCode: (id: number) => ['cost-codes', id] as const,
   version: (id: number) => ['plan-versions', id] as const,
   versions: (id: number) => ['cost-codes', id, 'versions'] as const,

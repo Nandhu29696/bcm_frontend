@@ -12,6 +12,7 @@ import type { AnswerJson, EditorQuestion } from '../types'
 function question(overrides: Partial<EditorQuestion>): EditorQuestion {
   return {
     question_id: 1,
+    question_number: 1,
     question_code: 'Q1',
     question_text: 'A question',
     question_description: '',

@@ -92,11 +92,19 @@ const columns = column.columns([
 ])
 
 export function CostCodeListPage() {
-  const { estateId: estateIdParam } = useParams()
+  const { estateId: estateIdParam, processId: processIdParam } = useParams()
   const navigate = useNavigate()
   const estateId = Number(estateIdParam)
+  const processId = processIdParam ? Number(processIdParam) : undefined
   const { filters, setFilter, toggleValue, toggleOrdering, clear, activeCount } =
     useCostCodeFilters()
+
+  useEffect(() => {
+    if (!processId || !Number.isInteger(processId)) return
+    if (filters.process.length !== 1 || filters.process[0] !== processId) {
+      setFilter('process', [processId])
+    }
+  }, [filters.process, processId, setFilter])
 
   // The cost code box is typed into, so it is debounced before it reaches the
   // URL and the API. Local state is the input's value; the URL stays the source
@@ -128,6 +136,12 @@ export function CostCodeListPage() {
     queryKey: estateKeys.detail(estateId),
     queryFn: () => estateApi.get(estateId),
     enabled: Number.isInteger(estateId),
+  })
+
+  const processes = useQuery({
+    queryKey: estateKeys.processes(estateId),
+    queryFn: () => estateApi.processes(estateId),
+    enabled: Number.isInteger(estateId) && Number.isInteger(processId),
   })
 
   const options = useQuery({
@@ -170,11 +184,25 @@ export function CostCodeListPage() {
   return (
     <>
       <PageHeader
-        title={estate.data?.estate_name ?? 'Cost codes'}
+        title={
+          processes.data?.find((process) => process.process_id === processId)?.process_name ??
+          estate.data?.estate_name ??
+          'Cost codes'
+        }
         subtitle={
-          <Link to="/estates" className="inline-flex items-center gap-1 text-brand-700 hover:underline">
-            <IconArrowLeft size={14} /> All estates
-          </Link>
+          <span className="flex flex-wrap items-center gap-2">
+            <Link to="/estates" className="inline-flex items-center gap-1 text-brand-700 hover:underline">
+              <IconArrowLeft size={14} /> All estates
+            </Link>
+            {processId && (
+              <>
+                <span className="text-ink-300">/</span>
+                <Link to={`/estates/${estateId}/processes`} className="text-brand-700 hover:underline">
+                  {estate.data?.estate_name ?? 'Processes'}
+                </Link>
+              </>
+            )}
+          </span>
         }
       >
         <div className="rounded-full border border-ink-200 bg-white px-3 py-1.5 text-sm text-ink-600 shadow-card">
@@ -198,6 +226,7 @@ export function CostCodeListPage() {
         onTextChange={onTextChange}
         onToggle={toggleValue}
         onClear={onClear}
+        lockedProcessName={processes.data?.find((process) => process.process_id === processId)?.process_name}
       />
 
       {costCodes.error ? (

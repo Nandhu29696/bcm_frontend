@@ -5,7 +5,7 @@ import { useSearchParams } from 'react-router-dom'
 import { toApiError } from '@/api/client'
 import { useToast } from '@/components/useToast'
 import { pageOf } from '@/components/paging'
-import { Alert, Button, EmptyState, Field, PageHeader, Pager, Select, StatusBadge, TableSkeleton } from '@/components/ui'
+import { Alert, Button, EmptyState, Field, Input, PageHeader, Pager, Select, StatusBadge, TableSkeleton } from '@/components/ui'
 import { estateApi, estateKeys } from '@/features/estates/api'
 import { formatDateTime } from '@/features/plans/format'
 import { reviewApi } from '@/features/review/api'
@@ -27,7 +27,16 @@ export function ReportsPage() {
     queryFn: insightsApi.reportRequests,
     refetchInterval: (query) => (query.state.data?.some((r) => r.status === 'PENDING') ? 3000 : false),
   })
-  const [form, setForm] = useState({ report_type: 'ESTATE_DETAIL', report_format: 'xlsx', schedule: 'ONCE', estate_id: '' })
+  const [form, setForm] = useState({
+    report_type: 'ESTATE_DETAIL',
+    report_format: 'xlsx',
+    schedule: 'ONCE',
+    estate_id: '',
+    cost_code: '',
+    date_from: '',
+    date_to: '',
+  })
+  const supportsDateRange = form.report_type !== 'ESTATE_DETAIL' && form.report_type !== 'DASHBOARD_SUMMARY'
   const [searchParams, setSearchParams] = useSearchParams()
   const page = Math.max(1, Number(searchParams.get('page')) || 1)
   function setPage(n: number) {
@@ -41,7 +50,17 @@ export function ReportsPage() {
     void queryClient.invalidateQueries({ queryKey: insightsKeys.reportRequests })
   }
   const request = useMutation({
-    mutationFn: () => insightsApi.requestReport({ ...form, estate_id: form.estate_id ? Number(form.estate_id) : null }),
+    mutationFn: () =>
+      insightsApi.requestReport({
+        report_type: form.report_type,
+        report_format: form.report_format,
+        schedule: form.schedule,
+        estate_id: form.estate_id ? Number(form.estate_id) : null,
+        // Date fields reject an empty string, unlike a missing key.
+        ...(form.cost_code ? { cost_code: form.cost_code } : {}),
+        ...(supportsDateRange && form.date_from ? { date_from: form.date_from } : {}),
+        ...(supportsDateRange && form.date_to ? { date_to: form.date_to } : {}),
+      }),
     onSuccess: (created) => {
       refresh()
       toast.success(created.schedule === 'ONCE' ? 'Report requested - you will be emailed a link' : 'Report scheduled')
@@ -55,7 +74,11 @@ export function ReportsPage() {
   })
   const inline = useMutation({
     mutationFn: async (fileFormat: string) => {
-      const blob = await insightsApi.estateDetailFile(form.estate_id ? Number(form.estate_id) : null, fileFormat)
+      const blob = await insightsApi.estateDetailFile(
+        form.estate_id ? Number(form.estate_id) : null,
+        fileFormat,
+        form.cost_code || undefined,
+      )
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -142,6 +165,37 @@ export function ReportsPage() {
               </Button>
             </div>
             </div>
+            <div className="grid gap-3 sm:grid-cols-3 md:max-w-2xl">
+              <Field label="Cost code" hint="Optional — narrows to one cost code.">
+                <Input
+                  type="search"
+                  value={form.cost_code}
+                  onChange={(e) => setForm({ ...form, cost_code: e.target.value })}
+                  placeholder="Search cost code"
+                  aria-label="Cost code"
+                />
+              </Field>
+              {supportsDateRange && (
+                <>
+                  <Field label="From">
+                    <Input
+                      type="date"
+                      value={form.date_from}
+                      onChange={(e) => setForm({ ...form, date_from: e.target.value })}
+                      aria-label="Date from"
+                    />
+                  </Field>
+                  <Field label="To">
+                    <Input
+                      type="date"
+                      value={form.date_to}
+                      onChange={(e) => setForm({ ...form, date_to: e.target.value })}
+                      aria-label="Date to"
+                    />
+                  </Field>
+                </>
+              )}
+            </div>
             <p className="text-xs text-ink-500">
               Leave the estate empty for every estate in your scope.
               {form.report_type === 'ESTATE_DETAIL' && <> <strong className="font-medium text-ink-700">Download now</strong> builds the file in your browser straight away;</>}{' '}
@@ -182,6 +236,9 @@ export function ReportsPage() {
                         <span className="block text-xs text-ink-500">
                           {r.report_format.toUpperCase()}
                           {r.parameters.estate_id ? ` · ${estates.data?.find((e) => e.estate_id === r.parameters.estate_id)?.estate_name ?? 'one estate'}` : ' · all estates'}
+                          {r.parameters.cost_code && ` · ${r.parameters.cost_code}`}
+                          {(r.parameters.date_from || r.parameters.date_to) &&
+                            ` · ${r.parameters.date_from ?? 'any'}–${r.parameters.date_to ?? 'any'}`}
                         </span>
                       </td>
                       <td>

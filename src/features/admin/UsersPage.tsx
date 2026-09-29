@@ -1,17 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import { toApiError } from '@/api/client'
 import { useToast } from '@/components/useToast'
 import { PAGE_SIZE } from '@/components/paging'
 import { Alert, Badge, Button, EmptyState, Field, Input, Modal, PageHeader, Pager, Select, StatusBadge, TableSkeleton } from '@/components/ui'
+import { IconEdit, IconEye } from '@/components/icons'
 import type { EmployeeSummary, UserStatus } from '@/features/auth/types'
 import { useCurrentUser } from '@/features/auth/useAuth'
 import { estateApi, estateKeys } from '@/features/estates/api'
+import { fetchMasterData, masterDataKey } from '@/features/plans/api'
 import { formatDateTime } from '@/features/plans/format'
 
-import { adminApi, adminKeys, type AdminUser, type AdminUserPatch } from './api'
+import { adminApi, adminKeys, type AdminEmployeeDetail, type AdminUser, type AdminUserPatch } from './api'
+
+const SEARCH_DEBOUNCE_MS = 300
 
 const STATUSES: UserStatus[] = ['Active', 'Pending', 'Suspended', 'Disabled']
 
@@ -26,10 +30,16 @@ export function UsersPage() {
     search: searchParams.get('search') ?? '',
     user_status: searchParams.get('user_status') ?? '',
     auth_provider: searchParams.get('auth_provider') ?? '',
+    estate: Number(searchParams.get('estate')) || undefined,
+    process: Number(searchParams.get('process')) || undefined,
+    cost_code: searchParams.get('cost_code') ?? '',
     page: Number(searchParams.get('page')) || 1,
   }
   const users = useQuery({ queryKey: adminKeys.users(filters), queryFn: () => adminApi.users(filters) })
+  const estates = useQuery({ queryKey: estateKeys.all, queryFn: estateApi.list })
+  const masterData = useQuery({ queryKey: masterDataKey, queryFn: fetchMasterData, staleTime: 300_000 })
   const [editing, setEditing] = useState<AdminUser | null>(null)
+  const [viewingEmployee, setViewingEmployee] = useState<AdminUser | null>(null)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [importing, setImporting] = useState(false)
   const queryClient = useQueryClient()
@@ -75,8 +85,27 @@ export function UsersPage() {
     setSearchParams(next, { replace: true })
   }
 
+  // The cost code box is typed into, so it is debounced before it reaches the
+  // URL and the API — same pattern as the estate/cost-code list's search.
+  const [costCodeText, setCostCodeText] = useState(filters.cost_code)
+  const debounce = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const onCostCodeChange = useCallback((value: string) => {
+    setCostCodeText(value)
+    clearTimeout(debounce.current)
+    debounce.current = setTimeout(() => setParam('cost_code', value), SEARCH_DEBOUNCE_MS)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => () => clearTimeout(debounce.current), [])
+
   const pending = users.data?.results.filter((u) => u.user_status === 'Pending').length ?? 0
-  const activeFilters = [filters.search, filters.user_status, filters.auth_provider].filter(Boolean).length
+  const activeFilters = [
+    filters.search,
+    filters.user_status,
+    filters.auth_provider,
+    filters.estate ? String(filters.estate) : '',
+    filters.process ? String(filters.process) : '',
+    filters.cost_code,
+  ].filter(Boolean).length
 
   return (
     <>
@@ -91,8 +120,8 @@ export function UsersPage() {
       </PageHeader>
 
       <div className="mb-5 rounded-card border border-ink-200/80 bg-white p-3 shadow-card">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-          <label className="min-w-0 flex-1">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          <label className="min-w-0">
             <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Find an account</span>
             <Input
               type="search"
@@ -102,7 +131,7 @@ export function UsersPage() {
               aria-label="Search users"
             />
           </label>
-          <label className="lg:w-44">
+          <label className="min-w-0">
             <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Status</span>
             <Select value={filters.user_status} onChange={(e) => setParam('user_status', e.target.value)} aria-label="Filter by status">
               <option value="">All statuses</option>
@@ -111,7 +140,7 @@ export function UsersPage() {
               ))}
             </Select>
           </label>
-          <label className="lg:w-48">
+          <label className="min-w-0">
             <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Sign-in method</span>
             <Select value={filters.auth_provider} onChange={(e) => setParam('auth_provider', e.target.value)} aria-label="Filter by sign-in method">
               <option value="">All methods</option>
@@ -120,13 +149,48 @@ export function UsersPage() {
               <option value="microsoft">Microsoft</option>
             </Select>
           </label>
+          <label className="min-w-0">
+            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Estate</span>
+            <Select value={filters.estate ?? ''} onChange={(e) => setParam('estate', e.target.value)} aria-label="Filter by estate">
+              <option value="">All estates</option>
+              {estates.data?.map((estate) => (
+                <option key={estate.estate_id} value={estate.estate_id}>
+                  {estate.estate_name}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <label className="min-w-0">
+            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Process</span>
+            <Select value={filters.process ?? ''} onChange={(e) => setParam('process', e.target.value)} aria-label="Filter by process">
+              <option value="">All processes</option>
+              {masterData.data?.process.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <label className="min-w-0">
+            <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Cost code</span>
+            <Input
+              type="search"
+              value={costCodeText}
+              onChange={(e) => onCostCodeChange(e.target.value)}
+              placeholder="Search cost code"
+              aria-label="Filter by cost code"
+            />
+          </label>
           {activeFilters > 0 && (
             <Button
               type="button"
               size="sm"
               variant="ghost"
-              className="lg:mb-0.5"
-              onClick={() => setSearchParams({}, { replace: true })}
+              className="self-end"
+              onClick={() => {
+                setCostCodeText('')
+                setSearchParams({}, { replace: true })
+              }}
             >
               Clear filters
             </Button>
@@ -148,8 +212,22 @@ export function UsersPage() {
       ) : users.data.results.length === 0 ? (
         <EmptyState title="No accounts match" />
       ) : (
-        <div className="overflow-x-auto rounded-card border border-ink-200/80 bg-white shadow-card">
-          <table className="data-table min-w-[900px]">
+        <div className="rounded-card border border-ink-200/80 bg-white shadow-card">
+          <div className="overflow-x-auto">
+          <table className="data-table user-admin-table" style={{ minWidth: 1070 }}>
+            {/* Inline styles, not Tailwind arbitrary classes: `<col>` widths are
+                not always picked up by the class scanner, and a dropped width
+                here is exactly what let the action column overlap the date. */}
+            <colgroup>
+              <col style={{ width: 220 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 110 }} />
+              <col style={{ width: 70 }} />
+              <col style={{ width: 160 }} />
+              <col style={{ width: 160 }} />
+              <col style={{ width: 150 }} />
+              <col style={{ width: 90 }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>User</th>
@@ -158,8 +236,8 @@ export function UsersPage() {
                 <th>MFA</th>
                 <th>Roles</th>
                 <th>Employee</th>
-                <th className="whitespace-nowrap">Last sign-in</th>
-                <th className="w-20 text-right">Action</th>
+                <th>Last sign-in</th>
+                <th className="user-admin-action-cell text-right">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -196,11 +274,16 @@ export function UsersPage() {
                       <span className="text-ink-400">Not linked</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap text-xs text-ink-500">{formatDateTime(u.last_login)}</td>
-                  <td>
-                    <div className="flex justify-end">
-                      <Button size="sm" variant="secondary" onClick={() => setEditing(u)} aria-label={`Edit ${u.email}`}>
-                        Edit
+                  <td className="overflow-hidden text-xs text-ellipsis whitespace-nowrap text-ink-500">{formatDateTime(u.last_login)}</td>
+                  <td className="user-admin-action-cell">
+                    <div className="flex justify-end gap-1">
+                      {u.employee && (
+                        <Button size="sm" variant="secondary" className="px-2" onClick={() => setViewingEmployee(u)} aria-label={`View employee details for ${u.display_name}`} title="View employee">
+                          <IconEye size={16} />
+                        </Button>
+                      )}
+                      <Button size="sm" variant="primary" className="px-2" onClick={() => setEditing(u)} aria-label={`Edit ${u.email}`} title="Edit">
+                        <IconEdit size={16} />
                       </Button>
                     </div>
                   </td>
@@ -208,6 +291,7 @@ export function UsersPage() {
               ))}
             </tbody>
           </table>
+          </div>
           <Pager page={filters.page} pageSize={PAGE_SIZE} total={users.data.count} onPage={(n) => setParam('page', String(n))} label="Account pages" />
         </div>
       )}
@@ -244,7 +328,53 @@ export function UsersPage() {
       )}
 
       {editing && <EditUserModal user={editing} onClose={() => setEditing(null)} />}
+      {viewingEmployee && <EmployeeDetailModal user={viewingEmployee} onClose={() => setViewingEmployee(null)} />}
     </>
+  )
+}
+
+function EmployeeDetailModal({ user, onClose }: { user: AdminUser; onClose: () => void }) {
+  const employee = useQuery({
+    queryKey: ['admin', 'users', user.user_id, 'employee'],
+    queryFn: () => adminApi.employeeDetail(user.user_id),
+  })
+
+  const groups: { title: string; fields: [string, keyof AdminEmployeeDetail][] }[] = [
+    { title: 'Identity', fields: [['Employee number', 'employee_number'], ['Full name', 'full_name'], ['Work email', 'email'], ['Designation', 'designation'], ['Domain', 'domain_name'], ['Gender', 'gender'], ['Contact number', 'contact_number'], ['Employment status', 'employment_status']] },
+    { title: 'Organization', fields: [['Estate', 'estate'], ['Process', 'process'], ['Subprocess', 'subprocess'], ['Cost code', 'cost_code'], ['Region', 'region'], ['Location', 'location'], ['Current location', 'current_location'], ['Center', 'center'], ['Line of business', 'lob'], ['BU lead', 'bu_lead'], ['BU classification', 'bu_classification'], ['Employee group', 'employee_group'], ['Employee grade', 'employee_grade']] },
+    { title: 'Reporting and dates', fields: [['Manager', 'manager_employee'], ['Supervisor', 'supervisor_employee'], ['Date of joining', 'date_of_joining'], ['Last working date', 'last_working_date']] },
+  ]
+
+  return (
+    <Modal title={`Employee details · ${user.display_name}`} onClose={onClose} width="max-w-3xl">
+      {employee.isPending ? (
+        <TableSkeleton cols={2} label="Loading employee details" />
+      ) : employee.error ? (
+        <Alert>{toApiError(employee.error).detail}</Alert>
+      ) : (
+        <div className="space-y-5">
+          {groups.map((group) => (
+            <section key={group.title}>
+              <h2 className="mb-2 border-b border-ink-100 pb-1 text-sm font-semibold text-ink-800">{group.title}</h2>
+              <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+                {group.fields.map(([label, key]) => {
+                  const value = employee.data[key]
+                  return (
+                    <div key={key} className="min-w-0">
+                      <dt className="text-xs font-medium text-ink-500">{label}</dt>
+                      <dd className="mt-0.5 break-words text-sm text-ink-900">{value || '—'}</dd>
+                    </div>
+                  )
+                })}
+              </dl>
+            </section>
+          ))}
+        </div>
+      )}
+      <div className="mt-5 flex justify-end">
+        <Button type="button" variant="secondary" onClick={onClose}>Close</Button>
+      </div>
+    </Modal>
   )
 }
 

@@ -115,6 +115,32 @@ body {
   @apply bg-brand-50/50;
 }
 
+/* Fixed layout + a colgroup keeps every column at a known width, so long
+   content (a date, a long name) wraps inside its own cell instead of
+   overflowing into the sticky action column. */
+.user-admin-table {
+  table-layout: fixed;
+}
+.user-admin-table .user-admin-action-cell {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background-color: white;
+  box-shadow: -8px 0 10px -10px oklch(0.2 0.02 260 / 0.55);
+}
+.user-admin-table thead .user-admin-action-cell {
+  z-index: 3;
+  background-color: oklch(0.965 0.005 260 / 0.98);
+}
+
+/* Metadata always reads as label first, value second. */
+dl > dt {
+  font-weight: 600;
+}
+dl > dd {
+  font-weight: 400;
+}
+
 /* Subtle, consistent scrollbars on the canvas. */
 * {
   scrollbar-width: thin;

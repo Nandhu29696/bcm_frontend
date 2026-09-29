@@ -3,14 +3,15 @@
  * active part lives in the URL (`?part=bia`) so a link lands on the right one.
  *
  *   questionnaire   Basic Questions, MAO, RTO, MBCO, RPO — the section tabs
- *   objectives      the hub: recovery objectives, and BIA / RA / Plan with status
+ *   objectives      "Summary": the plan's one-stop hub — recovery objectives,
+ *                   BIA / RA / Plan status, and the people/MBCO headline figures
  *   bia             BIA details, dependencies, critical resources, people, network
  *   ra              the risk register
  *   plan            recovery strategy, the BIA lists, network diagram, contacts
  */
 export const PARTS = [
   { key: 'questionnaire', label: 'Questionnaire', step: 1 },
-  { key: 'objectives', label: 'Recovery objective', step: 2 },
+  { key: 'objectives', label: 'Summary', step: 2 },
   { key: 'bia', label: 'BIA', step: 3 },
   { key: 'ra', label: 'RA', step: 4 },
   { key: 'plan', label: 'Plan', step: 5 },

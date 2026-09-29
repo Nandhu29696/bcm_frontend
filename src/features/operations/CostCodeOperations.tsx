@@ -26,7 +26,7 @@ export function CostCodeOperations({ costCodeId }: { costCodeId: number }) {
       <section aria-label="Tests" className="rounded-card border border-ink-200/80 bg-white p-5 shadow-card">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div>
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Tests</h2>
+            <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand-800">Tests</h2>
             <p className="mt-1 text-xs text-ink-400">{tests.data?.length ?? 0} total</p>
           </div>
           {canManage !== false && (
@@ -62,7 +62,7 @@ export function CostCodeOperations({ costCodeId }: { costCodeId: number }) {
       <section aria-label="Crisis events" className="rounded-card border border-ink-200/80 bg-white p-5 shadow-card">
         <div className="mb-3 flex items-center justify-between gap-2">
           <div>
-            <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-500">Crisis events</h2>
+            <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-brand-800">Crisis events</h2>
             <p className="mt-1 text-xs text-ink-400">{events.data?.length ?? 0} total</p>
           </div>
           {canManage !== false && (
